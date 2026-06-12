@@ -1,3 +1,4 @@
+<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
@@ -940,6 +941,7 @@
       }
       function renderBaseQuestions(trigger, conditions) {
         const box = $("baseBox");
+
         if (
           !conditions.length ||
           state.triggerResults[trigger.trigger_id] !== "Y"
@@ -947,29 +949,78 @@
           box.innerHTML = "";
           return;
         }
-        box.innerHTML = `<div class="base-question"><h3 class="section-title">기초질문</h3><div class="base-grid">${conditions.map((c) => renderConditionInput(trigger.trigger_id, c)).join("")}</div></div>`;
+
+        box.innerHTML = `
+          <div class="base-question">
+            <h3 class="section-title">기초질문</h3>
+            <div class="base-grid">
+              ${conditions
+                .map((c) => renderConditionInput(trigger.trigger_id, c))
+                .join("")}
+            </div>
+          </div>
+        `;
+
         conditions.forEach((c) => {
           const key = c.condition_key;
+
           if (c.input_type === "multicheck") {
             box.querySelectorAll(`[data-multi="${key}"]`).forEach((chk) => {
               chk.addEventListener("change", () => {
                 const values = [
                   ...box.querySelectorAll(`[data-multi="${key}"]:checked`),
                 ].map((x) => x.value);
+
                 state.baseAnswers[trigger.trigger_id][key] = values;
+
+                // 체크박스는 선택 즉시 조건부 항목이 바뀌므로 화면을 다시 그린다.
                 renderTriggerPanel();
                 updateSummary();
               });
             });
-          } else {
-            const el = box.querySelector(`[data-input="${key}"]`);
-            if (el)
-              el.addEventListener("input", () => {
-                state.baseAnswers[trigger.trigger_id][key] = el.value;
-                renderTriggerPanel();
-                updateSummary();
-              });
+
+            return;
           }
+
+          const el = box.querySelector(`[data-input="${key}"]`);
+          if (!el) return;
+
+          let isComposing = false;
+
+          el.addEventListener("compositionstart", () => {
+            isComposing = true;
+          });
+
+          el.addEventListener("compositionend", () => {
+            isComposing = false;
+            state.baseAnswers[trigger.trigger_id][key] = el.value;
+            updateSummary();
+          });
+
+          el.addEventListener("input", () => {
+            // 한글 조합 중에는 화면 재렌더링을 하지 않는다.
+            // 재렌더링을 하면 입력 포커스가 끊기고 글자가 뚝뚝 끊긴다.
+            if (isComposing) return;
+
+            state.baseAnswers[trigger.trigger_id][key] = el.value;
+            updateSummary();
+          });
+
+          el.addEventListener("change", () => {
+            state.baseAnswers[trigger.trigger_id][key] = el.value;
+
+            // 숫자/선택값 확정 후에만 조건부 항목 표시를 다시 계산한다.
+            renderTriggerPanel();
+            updateSummary();
+          });
+
+          el.addEventListener("blur", () => {
+            state.baseAnswers[trigger.trigger_id][key] = el.value;
+
+            // 입력 중에는 건드리지 않고, 포커스가 빠졌을 때만 재렌더링한다.
+            renderTriggerPanel();
+            updateSummary();
+          });
         });
       }
       function renderConditionInput(triggerId, c) {
