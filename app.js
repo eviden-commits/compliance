@@ -22,10 +22,6 @@ const state = {
         el.classList.add("show");
         setTimeout(() => el.classList.remove("show"), 4800);
       }
-);
-        if (!res.ok) throw new Error("API POST 실패: " + res.status);
-        return await res.json();
-      }
       async function init() {
         try {
           $("apiBadge").textContent = "API 연결 중";

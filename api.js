@@ -8,7 +8,6 @@ const API_BASE_URL = "https://script.google.com/macros/s/AKfycbyw7Cd-tYPSsV9nuzX
 
 async function apiGet(action, params = {}) {
   const url = new URL(API_BASE_URL);
-
   url.searchParams.set("action", action);
 
   Object.entries(params).forEach(([key, value]) => {
