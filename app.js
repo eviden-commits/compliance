@@ -297,6 +297,15 @@ const state = {
             state.badDetails[itemId][field] = el.value;
           });
         });
+        list.querySelectorAll("[data-law-id]").forEach((el) => {
+          el.addEventListener("click", () => openLawModal(el.dataset.lawId));
+          el.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              openLawModal(el.dataset.lawId);
+            }
+          });
+        });
       }
       function renderItemCard(item, trigger) {
         const status = state.itemResults[item.item_id] || "";
@@ -308,7 +317,43 @@ const state = {
           state.baseAnswers[trigger.trigger_id] || {},
         );
         const details = state.badDetails[item.item_id] || {};
-        return `<div class="item-card ${isBad ? "bad" : isUnchecked ? "unchecked" : ""}"><div class="item-row"><div class="item-main"><div class="item-meta"><span class="pill">ITEM ${escapeHtml(String(item.item_no || ""))}</span><span class="pill law">${escapeHtml((law.law_name || item.law_id || "") + " " + (law.article || ""))}</span>${String(item.required).toUpperCase() === "Y" ? '<span class="pill req">필수</span>' : '<span class="pill">권장</span>'}${item.evidence_required === "Y" ? '<span class="pill new">증빙필수</span>' : ""}</div><h3 class="item-title">${escapeHtml(item.item_title || "")}</h3><p class="item-text">${escapeHtml(text)}</p>${item.note ? `<p class="item-text" style="margin-top:6px;">비고: ${escapeHtml(item.note)}</p>` : ""}</div><div class="item-actions"><div class="segmented"><button class="${status === "이행" ? "on ok" : ""}" data-item-id="${escapeAttr(item.item_id)}" data-result="이행">이행</button><button class="${status === "미이행" ? "on bad" : ""}" data-item-id="${escapeAttr(item.item_id)}" data-result="미이행">미이행</button><button class="${status === "해당없음" ? "on na" : ""}" data-item-id="${escapeAttr(item.item_id)}" data-result="해당없음">해당없음</button></div></div></div>${isBad ? `<div class="bad-extra"><div class="field wide"><label>미이행 사유</label><textarea data-item-id="${escapeAttr(item.item_id)}" data-detail="remark">${escapeHtml(details.remark || "")}</textarea></div><div class="field wide"><label>시정조치계획</label><textarea data-item-id="${escapeAttr(item.item_id)}" data-detail="corrective_action">${escapeHtml(details.corrective_action || "")}</textarea></div><div class="field"><label>조치기한</label><input type="date" data-item-id="${escapeAttr(item.item_id)}" data-detail="due_date" value="${escapeAttr(details.due_date || "")}"></div><div class="field"><label>조치담당자</label><input data-item-id="${escapeAttr(item.item_id)}" data-detail="responsible_person" value="${escapeAttr(details.responsible_person || "")}"></div></div>` : ""}</div>`;
+        const lawLabel = escapeHtml(
+          (law.law_name || item.law_id || "") + " " + (law.article || ""),
+        );
+        const lawPill = law.law_name
+          ? `<span class="pill law clickable" data-law-id="${escapeAttr(item.law_id)}" role="button" tabindex="0" title="법규 원문 보기">${lawLabel} 🔍</span>`
+          : `<span class="pill law">${lawLabel}</span>`;
+        return `<div class="item-card ${isBad ? "bad" : isUnchecked ? "unchecked" : ""}"><div class="item-row"><div class="item-main"><div class="item-meta"><span class="pill">ITEM ${escapeHtml(String(item.item_no || ""))}</span>${lawPill}${String(item.required).toUpperCase() === "Y" ? '<span class="pill req">필수</span>' : '<span class="pill">권장</span>'}${item.evidence_required === "Y" ? '<span class="pill new">증빙필수</span>' : ""}</div><h3 class="item-title">${escapeHtml(item.item_title || "")}</h3><p class="item-text">${escapeHtml(text)}</p>${item.note ? `<p class="item-text" style="margin-top:6px;">비고: ${escapeHtml(item.note)}</p>` : ""}</div><div class="item-actions"><div class="segmented"><button class="${status === "이행" ? "on ok" : ""}" data-item-id="${escapeAttr(item.item_id)}" data-result="이행">이행</button><button class="${status === "미이행" ? "on bad" : ""}" data-item-id="${escapeAttr(item.item_id)}" data-result="미이행">미이행</button><button class="${status === "해당없음" ? "on na" : ""}" data-item-id="${escapeAttr(item.item_id)}" data-result="해당없음">해당없음</button></div></div></div>${isBad ? `<div class="bad-extra"><div class="field wide"><label>미이행 사유</label><textarea data-item-id="${escapeAttr(item.item_id)}" data-detail="remark">${escapeHtml(details.remark || "")}</textarea></div><div class="field wide"><label>시정조치계획</label><textarea data-item-id="${escapeAttr(item.item_id)}" data-detail="corrective_action">${escapeHtml(details.corrective_action || "")}</textarea></div><div class="field"><label>조치기한</label><input type="date" data-item-id="${escapeAttr(item.item_id)}" data-detail="due_date" value="${escapeAttr(details.due_date || "")}"></div><div class="field"><label>조치담당자</label><input data-item-id="${escapeAttr(item.item_id)}" data-detail="responsible_person" value="${escapeAttr(details.responsible_person || "")}"></div></div>` : ""}</div>`;
+      }
+      function openLawModal(lawId) {
+        const law = state.rules?.lawMap?.[lawId];
+        if (!law) {
+          showToast("법규 상세정보를 찾을 수 없습니다: " + lawId);
+          return;
+        }
+        $("lawModalName").textContent = law.law_name || lawId;
+        $("lawModalArticle").textContent = [law.article, law.clause]
+          .filter(Boolean)
+          .join(" · ");
+        $("lawModalClause").textContent = law.clause || "-";
+        $("lawModalSummary").textContent = law.law_summary || "내용이 없습니다.";
+        $("lawModalPenalty").textContent = law.penalty || "명시된 벌칙 없음";
+        const noteBox = $("lawModalNoteBox");
+        if (law.note) {
+          $("lawModalNote").textContent = law.note;
+          noteBox.style.display = "";
+        } else {
+          noteBox.style.display = "none";
+        }
+        const query = encodeURIComponent(
+          [law.law_name, law.article].filter(Boolean).join(" "),
+        );
+        $("lawModalExternalLink").href =
+          "https://www.law.go.kr/LSW/lsSc.do?menuId=1&query=" + query;
+        $("lawModal").classList.remove("hidden");
+      }
+      function closeLawModal() {
+        $("lawModal").classList.add("hidden");
       }
       function getActiveItemsForTrigger(triggerId) {
         const allItems = state.rules.itemMap?.[triggerId] || [];
@@ -511,8 +556,21 @@ const state = {
         try {
           const res = await apiPost("submitInspection", payload);
           if (!res.ok) throw new Error(res.error?.message || "제출 실패");
-          $("saveStatus").textContent = "제출 완료: " + res.data.submission_id;
-          showToast("제출 완료: " + res.data.submission_id);
+          const pdfUrl = res.data.pdf_url || "";
+
+        $("saveStatus").innerHTML = pdfUrl
+          ? '제출 완료: ' +
+            res.data.submission_id +
+            ' / <a href="' +
+            pdfUrl +
+            '" target="_blank" rel="noopener">PDF 열기</a>'
+          : "제출 완료: " + res.data.submission_id;
+
+        showToast(
+          pdfUrl
+            ? "제출 완료. PDF가 생성되었습니다."
+            : "제출 완료. PDF URL은 생성되지 않았습니다."
+        );
         } catch (err) {
           $("saveStatus").textContent = "제출 실패";
           showToast(
@@ -547,4 +605,13 @@ const state = {
       $("reloadBtn").addEventListener("click", () => location.reload());
       $("nextBtn").addEventListener("click", goNextTrigger);
       $("submitBtn").addEventListener("click", submitInspection);
+      $("lawModalClose").addEventListener("click", closeLawModal);
+      $("lawModalCloseBtn").addEventListener("click", closeLawModal);
+      $("lawModal").addEventListener("click", (e) => {
+        if (e.target === $("lawModal")) closeLawModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !$("lawModal").classList.contains("hidden"))
+          closeLawModal();
+      });
       init();

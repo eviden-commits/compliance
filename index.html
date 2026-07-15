@@ -134,6 +134,48 @@
       </div>
     </div>
     <div id="toast" class="toast"></div>
+    <div id="lawModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div>
+            <div id="lawModalName" class="modal-law-name"></div>
+            <div id="lawModalArticle" class="modal-law-article"></div>
+          </div>
+          <button id="lawModalClose" class="modal-close" aria-label="닫기">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-section">
+            <div class="modal-section-title">의무내용</div>
+            <div id="lawModalClause"></div>
+          </div>
+          <div class="modal-section">
+            <div class="modal-section-title">조문 전문</div>
+            <div id="lawModalSummary" class="modal-pre"></div>
+          </div>
+          <div class="modal-section">
+            <div class="modal-section-title">벌칙</div>
+            <div id="lawModalPenalty" class="modal-pre"></div>
+          </div>
+          <div id="lawModalNoteBox" class="modal-section">
+            <div class="modal-section-title">비고</div>
+            <div id="lawModalNote" class="modal-pre"></div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <a
+            id="lawModalExternalLink"
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn"
+            >법제처에서 원문 검색 ↗</a
+          >
+          <button id="lawModalCloseBtn" class="btn primary">닫기</button>
+        </div>
+      </div>
+    </div>
     <script src="./api.js"></script>
   <script src="./app.js"></script>
   </body>
