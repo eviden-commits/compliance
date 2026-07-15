@@ -4,8 +4,7 @@
  * 화면 상태관리, Rule Master 렌더링, 점검결과 제출 로직
  */
 
-const SITE_PASSWORD = "0889";
-      const ADMIN_PASSWORD = "sbtec5809*";
+// 비밀번호는 여기 두지 않는다. 서버(Auth.gs의 verifyLogin)에서만 대조한다.
       // 트리거 진입 전 전역으로 묻고, 해당 트리거의 기초질문에서는 숨기는 조건 키
       const GLOBAL_CONDITION_KEYS = ["n_workers"];
 
@@ -671,24 +670,31 @@ const SITE_PASSWORD = "0889";
       }
 
       // ---------------- 로그인 ----------------
-      function attemptLogin() {
+      // 비밀번호는 서버(Auth.gs verifyLogin)에서만 검증한다. 클라이언트는
+      // 결과(ok/fail)만 받는다 — 페이지 소스에 비밀번호가 노출되지 않는다.
+      async function attemptLogin() {
         const role =
           document.querySelector('input[name="loginRole"]:checked')?.value ||
           "site";
         const pw = $("loginPassword").value;
-        if (role === "site" && pw === SITE_PASSWORD) {
-          sessionStorage.setItem("authRole", "site");
-          $("loginError").textContent = "";
-          showApp("site");
-          return;
+        const btn = $("loginSubmitBtn");
+        btn.disabled = true;
+        $("loginError").textContent = "";
+        try {
+          const res = await apiPost("login", { role, password: pw });
+          if (!res.ok) {
+            $("loginError").textContent =
+              res.error?.message || "비밀번호가 올바르지 않습니다.";
+            return;
+          }
+          sessionStorage.setItem("authRole", res.data.role);
+          showApp(res.data.role);
+        } catch (err) {
+          $("loginError").textContent =
+            "로그인 확인 중 오류: " + err.message;
+        } finally {
+          btn.disabled = false;
         }
-        if (role === "admin" && pw === ADMIN_PASSWORD) {
-          sessionStorage.setItem("authRole", "admin");
-          $("loginError").textContent = "";
-          showApp("admin");
-          return;
-        }
-        $("loginError").textContent = "비밀번호가 올바르지 않습니다.";
       }
       function showApp(role) {
         $("loginOverlay").classList.add("hidden");
@@ -720,10 +726,98 @@ const SITE_PASSWORD = "0889";
             $("adminWeek").value = week.week;
           }
           await loadAdminWeek();
+          await loadAdminSiteList();
         } catch (err) {
           $("adminApiBadge").textContent = "API 오류";
           $("adminApiBadge").className = "api-badge fail";
           showToast("관리자 초기화 오류: " + err.message);
+        }
+      }
+      async function loadAdminSiteList() {
+        try {
+          const res = await apiGet("getSiteList");
+          if (!res.ok) throw new Error(res.error?.message || "현장목록 조회 실패");
+          renderAdminAllSites(res.data || []);
+        } catch (err) {
+          showToast("현장목록 조회 오류: " + err.message);
+        }
+      }
+      function renderAdminAllSites(sites) {
+        const body = $("adminAllSiteTableBody");
+        if (!sites.length) {
+          body.innerHTML =
+            '<tr><td colspan="5" class="muted">등록된 현장이 없습니다.</td></tr>';
+          return;
+        }
+        body.innerHTML = sites
+          .map(
+            (s) => `<tr>
+              <td>${escapeHtml(s.site_id)}</td>
+              <td>${escapeHtml(s.site_name)}</td>
+              <td>${escapeHtml(s.division || "")}</td>
+              <td><span class="pill ${s.contract_type === "원청" ? "law" : ""}">${escapeHtml(s.contract_type || "")}</span></td>
+              <td>${escapeHtml(s.site_manager || "")}</td>
+            </tr>`,
+          )
+          .join("");
+      }
+      function openAddSiteModal() {
+        $("addSiteError").textContent = "";
+        $("addSiteModal").classList.remove("hidden");
+      }
+      function closeAddSiteModal() {
+        $("addSiteModal").classList.add("hidden");
+      }
+      async function submitAddSite() {
+        const siteName = $("newSiteName").value.trim();
+        const contractType =
+          document.querySelector('input[name="newSiteContractType"]:checked')
+            ?.value || "";
+        const adminPassword = $("newSiteAdminPassword").value;
+
+        if (!siteName) {
+          $("addSiteError").textContent = "현장명을 입력하십시오.";
+          return;
+        }
+        if (!contractType) {
+          $("addSiteError").textContent = "계약구분을 선택하십시오.";
+          return;
+        }
+        if (!adminPassword) {
+          $("addSiteError").textContent = "관리자 비밀번호를 입력하십시오.";
+          return;
+        }
+
+        $("addSiteSubmitBtn").disabled = true;
+        $("addSiteError").textContent = "";
+        try {
+          const res = await apiPost("addSite", {
+            admin_password: adminPassword,
+            site_name: siteName,
+            division: $("newSiteDivision").value.trim(),
+            contract_type: contractType,
+            contract_amount: $("newSiteContractAmount").value,
+            site_manager: $("newSiteManager").value.trim(),
+          });
+          if (!res.ok) throw new Error(res.error?.message || "현장 추가 실패");
+
+          showToast(
+            "현장이 추가되었습니다: " +
+              res.data.site_id +
+              " / " +
+              res.data.site_name,
+          );
+          $("newSiteName").value = "";
+          $("newSiteDivision").value = "";
+          $("newSiteContractAmount").value = "";
+          $("newSiteManager").value = "";
+          $("newSiteAdminPassword").value = "";
+          closeAddSiteModal();
+          await loadAdminSiteList();
+        } catch (err) {
+          $("addSiteError").textContent = err.message;
+        } finally {
+          $("addSiteSubmitBtn").disabled = false;
         }
       }
       async function loadAdminWeek() {
@@ -833,6 +927,19 @@ const SITE_PASSWORD = "0889";
       });
       $("adminLoadBtn").addEventListener("click", loadAdminWeek);
       $("adminGenerateHqPdfBtn").addEventListener("click", generateHqPdf);
+      $("adminAddSiteBtn").addEventListener("click", openAddSiteModal);
+      $("addSiteModalClose").addEventListener("click", closeAddSiteModal);
+      $("addSiteSubmitBtn").addEventListener("click", submitAddSite);
+      $("addSiteModal").addEventListener("click", (e) => {
+        if (e.target === $("addSiteModal")) closeAddSiteModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (
+          e.key === "Escape" &&
+          !$("addSiteModal").classList.contains("hidden")
+        )
+          closeAddSiteModal();
+      });
       wireWorkforceBox();
 
       const savedRole = sessionStorage.getItem("authRole");

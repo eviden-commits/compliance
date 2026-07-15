@@ -481,7 +481,8 @@
         grid-template-columns: 1fr 1fr;
         gap: 10px;
       }
-      .bad-extra .wide {
+      .bad-extra .wide,
+      .field.wide {
         grid-column: 1 / -1;
       }
       .right-panel {

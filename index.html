@@ -226,6 +226,9 @@
           <a id="adminHqPdfLink" class="btn" style="display: none" target="_blank" rel="noopener">
             본사 PDF 열기 ↗
           </a>
+          <button class="btn primary" id="adminAddSiteBtn" style="margin-left: auto">
+            + 현장 추가
+          </button>
         </section>
         <section class="card admin-summary" id="adminSummaryBox"></section>
         <section class="card admin-table-box">
@@ -248,6 +251,81 @@
             </table>
           </div>
         </section>
+        <section class="card admin-table-box">
+          <h3 class="section-title">등록된 현장 목록</h3>
+          <div style="overflow-x: auto">
+            <table class="admin-table" id="adminAllSiteTable">
+              <thead>
+                <tr>
+                  <th>현장 ID</th>
+                  <th>현장명</th>
+                  <th>본부</th>
+                  <th>계약구분</th>
+                  <th>현장소장</th>
+                </tr>
+              </thead>
+              <tbody id="adminAllSiteTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- 현장 추가 모달 -->
+    <div id="addSiteModal" class="modal-overlay hidden">
+      <div class="modal-box">
+        <div class="modal-head">
+          <div>
+            <div class="modal-law-name">현장 추가</div>
+            <div class="modal-law-article">
+              05_site_master_snapshot에 새 현장을 등록합니다.
+            </div>
+          </div>
+          <button id="addSiteModalClose" class="modal-close" aria-label="닫기">
+            ✕
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="base-grid">
+            <div class="field wide">
+              <label>현장명 *</label>
+              <input type="text" id="newSiteName" placeholder="예: 평택 FAB 5기 증설" />
+            </div>
+            <div class="field">
+              <label>본부</label>
+              <input type="text" id="newSiteDivision" placeholder="예: 하이테크본부" />
+            </div>
+            <div class="field">
+              <label>계약구분 *</label>
+              <div class="login-role-group">
+                <label class="login-role">
+                  <input type="radio" name="newSiteContractType" value="원청" />
+                  원청
+                </label>
+                <label class="login-role">
+                  <input type="radio" name="newSiteContractType" value="하도급" checked />
+                  하도급
+                </label>
+              </div>
+            </div>
+            <div class="field">
+              <label>계약금액 (원)</label>
+              <input type="number" id="newSiteContractAmount" min="0" />
+            </div>
+            <div class="field">
+              <label>현장소장</label>
+              <input type="text" id="newSiteManager" />
+            </div>
+            <div class="field wide">
+              <label>관리자 비밀번호 확인 *</label>
+              <input type="password" id="newSiteAdminPassword" placeholder="현장 추가를 위해 관리자 비밀번호를 다시 입력하십시오" />
+            </div>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <span id="addSiteError" class="login-error" style="margin-top: 0"></span>
+          <button id="addSiteSubmitBtn" class="btn primary">현장 추가</button>
+        </div>
       </div>
     </div>
 
