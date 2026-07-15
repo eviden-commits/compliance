@@ -671,6 +671,98 @@
         padding: 16px 22px;
         border-top: 1px solid var(--border);
       }
+      .hidden {
+        display: none !important;
+      }
+      .login-overlay {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(160deg, var(--primary), #001c38);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 60;
+        padding: 20px;
+      }
+      .login-box {
+        background: #fff;
+        border-radius: 18px;
+        padding: 32px;
+        width: 100%;
+        max-width: 380px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
+      .login-role-group {
+        display: flex;
+        gap: 10px;
+      }
+      .login-role {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 12px;
+        font-weight: 800;
+        cursor: pointer;
+        color: var(--muted);
+      }
+      .login-role:has(input:checked) {
+        border-color: var(--primary);
+        color: var(--primary);
+        background: #eff6ff;
+      }
+      .login-error {
+        margin-top: 10px;
+        min-height: 18px;
+        color: var(--error);
+        font-weight: 800;
+        font-size: 13px;
+      }
+      .admin-layout {
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        padding: 22px;
+        max-width: 1280px;
+        margin: 0 auto 60px;
+      }
+      .admin-controls {
+        padding: 18px 22px;
+        display: flex;
+        align-items: flex-end;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .admin-summary {
+        padding: 18px 22px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+      }
+      .admin-table-box {
+        padding: 18px 22px;
+      }
+      .admin-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .admin-table th,
+      .admin-table td {
+        border-bottom: 1px solid var(--border);
+        padding: 10px 8px;
+        text-align: left;
+        white-space: nowrap;
+      }
+      .admin-table th {
+        color: var(--muted);
+        font-weight: 900;
+        font-size: 11px;
+        text-transform: uppercase;
+      }
       @media (max-width: 1180px) {
         .layout {
           grid-template-columns: 280px 1fr;

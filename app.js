@@ -4,7 +4,12 @@
  * 화면 상태관리, Rule Master 렌더링, 점검결과 제출 로직
  */
 
-const state = {
+const SITE_PASSWORD = "0889";
+      const ADMIN_PASSWORD = "sbtec5809*";
+      // 트리거 진입 전 전역으로 묻고, 해당 트리거의 기초질문에서는 숨기는 조건 키
+      const GLOBAL_CONDITION_KEYS = ["n_workers"];
+
+      const state = {
         appConfig: null,
         rules: null,
         sites: [],
@@ -14,6 +19,7 @@ const state = {
         baseAnswers: {},
         itemResults: {},
         badDetails: {},
+        siteContext: { avg_workers: "", new_workers: "" },
       };
       const $ = (id) => document.getElementById(id);
       function showToast(message) {
@@ -77,6 +83,10 @@ const state = {
         sel.addEventListener("change", () => {
           state.selectedSite =
             state.sites.find((s) => s.site_id === sel.value) || null;
+          // 계약구분(원청/하도급)에 따라 노출되는 항목이 달라지므로 다시 그린다.
+          renderTriggerPanel();
+          renderTriggerList();
+          updateSummary();
         });
       }
       function initializeStateFromRules() {
@@ -165,8 +175,13 @@ const state = {
         renderBaseQuestions(trigger, conditions);
         renderItems(activeItems, trigger);
       }
-      function renderBaseQuestions(trigger, conditions) {
+      function renderBaseQuestions(trigger, allConditions) {
         const box = $("baseBox");
+        // n_workers 등은 트리거 진입 전 "현장 인력 현황" 박스에서 이미 물었으므로
+        // 트리거 안에서는 다시 묻지 않는다.
+        const conditions = allConditions.filter(
+          (c) => !GLOBAL_CONDITION_KEYS.includes(c.condition_key),
+        );
 
         if (
           !conditions.length ||
@@ -358,7 +373,13 @@ const state = {
       function getActiveItemsForTrigger(triggerId) {
         const allItems = state.rules.itemMap?.[triggerId] || [];
         const answers = state.baseAnswers[triggerId] || {};
-        return allItems.filter((item) => isItemActive(item, answers));
+        const contractType = state.selectedSite?.contract_type || "";
+        return allItems.filter((item) => {
+          // 원청 전용 항목은 원청 현장에서만 노출한다.
+          if (item.apply_type === "원청" && contractType !== "원청")
+            return false;
+          return isItemActive(item, answers);
+        });
       }
       function isItemActive(item, answers) {
         if (String(item.active || "Y").toUpperCase() !== "Y") {
@@ -519,6 +540,8 @@ const state = {
           contract_amount: site.contract_amount || "",
           manager_name: site.site_manager || "",
           manager_type: site.contract_type || "",
+          avg_workers: state.siteContext.avg_workers || "",
+          new_workers: state.siteContext.new_workers || "",
           submitter_name: $("submitterName").value.trim(),
           submitter_email: $("submitterEmail").value.trim(),
           rule_version: state.rules.ruleVersion,
@@ -543,6 +566,11 @@ const state = {
         if (!payload.site_id) return "현장을 선택하십시오.";
         return "";
       }
+      function driveDirectDownloadUrl(fileId) {
+        return fileId
+          ? "https://drive.google.com/uc?export=download&id=" + fileId
+          : "";
+      }
       async function submitInspection() {
         const payload = buildSubmitPayload();
         const msg = validateBeforeSubmit(payload);
@@ -557,20 +585,39 @@ const state = {
           const res = await apiPost("submitInspection", payload);
           if (!res.ok) throw new Error(res.error?.message || "제출 실패");
           const pdfUrl = res.data.pdf_url || "";
+          const pdfFileId = res.data.pdf_file_id || "";
+          const downloadUrl = driveDirectDownloadUrl(pdfFileId) || pdfUrl;
 
-        $("saveStatus").innerHTML = pdfUrl
-          ? '제출 완료: ' +
-            res.data.submission_id +
-            ' / <a href="' +
-            pdfUrl +
-            '" target="_blank" rel="noopener">PDF 열기</a>'
-          : "제출 완료: " + res.data.submission_id;
+          if (pdfUrl) {
+            $("saveStatus").innerHTML =
+              '제출 완료: ' +
+              escapeHtml(res.data.submission_id) +
+              ' / <a href="' +
+              escapeAttr(pdfUrl) +
+              '" target="_blank" rel="noopener">PDF 열기</a>' +
+              ' / <a id="pdfDownloadLink" href="' +
+              escapeAttr(downloadUrl) +
+              '" target="_blank" rel="noopener">PDF 다운로드</a>' +
+              ' <span id="autoDownloadNotice" class="muted">(3초 후 자동 다운로드됩니다)</span>';
 
-        showToast(
-          pdfUrl
-            ? "제출 완료. PDF가 생성되었습니다."
-            : "제출 완료. PDF URL은 생성되지 않았습니다."
-        );
+            showToast("제출 완료. PDF가 생성되었습니다.");
+
+            setTimeout(() => {
+              const notice = $("autoDownloadNotice");
+              if (notice) notice.remove();
+              const a = document.createElement("a");
+              a.href = downloadUrl;
+              a.target = "_blank";
+              a.rel = "noopener";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            }, 3000);
+          } else {
+            $("saveStatus").textContent =
+              "제출 완료: " + res.data.submission_id;
+            showToast("제출 완료. PDF URL은 생성되지 않았습니다.");
+          }
         } catch (err) {
           $("saveStatus").textContent = "제출 실패";
           showToast(
@@ -602,6 +649,170 @@ const state = {
       function escapeAttr(value) {
         return escapeHtml(value);
       }
+      function extractDriveFileId(url) {
+        const m = String(url || "").match(/\/d\/([^/]+)/);
+        return m ? m[1] : "";
+      }
+
+      // ---------------- 현장 인력 현황 (트리거 전 사전 입력) ----------------
+      function wireWorkforceBox() {
+        $("avgWorkers").addEventListener("input", () => {
+          state.siteContext.avg_workers = $("avgWorkers").value;
+        });
+        $("newWorkers").addEventListener("input", () => {
+          state.siteContext.new_workers = $("newWorkers").value;
+          if (!state.baseAnswers["T1"]) state.baseAnswers["T1"] = {};
+          state.baseAnswers["T1"].n_workers = $("newWorkers").value;
+          if (state.currentTriggerId === "T1") {
+            renderTriggerPanel();
+            updateSummary();
+          }
+        });
+      }
+
+      // ---------------- 로그인 ----------------
+      function attemptLogin() {
+        const role =
+          document.querySelector('input[name="loginRole"]:checked')?.value ||
+          "site";
+        const pw = $("loginPassword").value;
+        if (role === "site" && pw === SITE_PASSWORD) {
+          sessionStorage.setItem("authRole", "site");
+          $("loginError").textContent = "";
+          showApp("site");
+          return;
+        }
+        if (role === "admin" && pw === ADMIN_PASSWORD) {
+          sessionStorage.setItem("authRole", "admin");
+          $("loginError").textContent = "";
+          showApp("admin");
+          return;
+        }
+        $("loginError").textContent = "비밀번호가 올바르지 않습니다.";
+      }
+      function showApp(role) {
+        $("loginOverlay").classList.add("hidden");
+        if (role === "admin") {
+          $("adminRoot").classList.remove("hidden");
+          initAdmin();
+        } else {
+          $("appRoot").classList.remove("hidden");
+          init();
+        }
+      }
+      function logout() {
+        sessionStorage.removeItem("authRole");
+        location.reload();
+      }
+
+      // ---------------- 관리자 ----------------
+      async function initAdmin() {
+        try {
+          $("adminApiBadge").textContent = "API 확인 중";
+          const health = await apiGet("healthCheck");
+          if (!health.ok) throw new Error("healthCheck 실패");
+          $("adminApiBadge").textContent = "API 정상";
+          $("adminApiBadge").className = "api-badge ok";
+          const configRes = await apiGet("getAppConfig");
+          const week = configRes.data?.currentWeek;
+          if (week) {
+            $("adminYear").value = week.year;
+            $("adminWeek").value = week.week;
+          }
+          await loadAdminWeek();
+        } catch (err) {
+          $("adminApiBadge").textContent = "API 오류";
+          $("adminApiBadge").className = "api-badge fail";
+          showToast("관리자 초기화 오류: " + err.message);
+        }
+      }
+      async function loadAdminWeek() {
+        const year = $("adminYear").value;
+        const week = $("adminWeek").value;
+        if (!year || !week) {
+          showToast("연도/주차를 입력하십시오.");
+          return;
+        }
+        $("adminSummaryBox").textContent = "조회 중입니다...";
+        $("adminSiteTableBody").innerHTML = "";
+        $("adminHqPdfLink").style.display = "none";
+        try {
+          const res = await apiGet("getWeeklyMonitoringSummary", {
+            inspectionYear: year,
+            inspectionWeek: week,
+          });
+          if (!res.ok) throw new Error(res.error?.message || "조회 실패");
+          renderAdminSummary(res.data);
+          renderAdminSites(res.data.sites || []);
+        } catch (err) {
+          $("adminSummaryBox").textContent = "조회 오류: " + err.message;
+          showToast("조회 오류: " + err.message);
+        }
+      }
+      function renderAdminSummary(data) {
+        $("adminSummaryBox").innerHTML = `
+          <div class="summary-line"><span>대상 현장</span><span>${data.expected_site_count}</span></div>
+          <div class="summary-line"><span>제출 현장</span><span>${data.submitted_site_count}</span></div>
+          <div class="summary-line bad"><span>미제출 현장</span><span>${data.missing_site_count}</span></div>
+          <div class="summary-line"><span>제출률</span><span>${data.submit_rate}%</span></div>
+          <div class="summary-line bad"><span>중대 미이행</span><span>${data.critical_count}</span></div>
+        `;
+      }
+      function renderAdminSites(sites) {
+        const body = $("adminSiteTableBody");
+        if (!sites.length) {
+          body.innerHTML =
+            '<tr><td colspan="8" class="muted">데이터가 없습니다.</td></tr>';
+          return;
+        }
+        body.innerHTML = sites
+          .map((s) => {
+            const fileId = extractDriveFileId(s.pdf_url);
+            const pdfCell = s.pdf_url
+              ? `<a href="${escapeAttr(s.pdf_url)}" target="_blank" rel="noopener">열기</a>` +
+                (fileId
+                  ? ` / <a href="${escapeAttr(driveDirectDownloadUrl(fileId))}" target="_blank" rel="noopener">다운로드</a>`
+                  : "")
+              : "-";
+            const pillClass = s.submit_status === "미제출" ? "req" : "new";
+            return `<tr>
+              <td>${escapeHtml(s.site_name)}</td>
+              <td>${escapeHtml(s.division || "")}</td>
+              <td>${escapeHtml(s.contract_type || "")}</td>
+              <td><span class="pill ${pillClass}">${escapeHtml(s.submit_status)}</span></td>
+              <td>${escapeHtml(s.submitted_at || "-")}</td>
+              <td>${escapeHtml(s.overall_status || "-")}</td>
+              <td>${escapeHtml(String(s.non_compliant_count ?? 0))}</td>
+              <td>${pdfCell}</td>
+            </tr>`;
+          })
+          .join("");
+      }
+      async function generateHqPdf() {
+        const year = $("adminYear").value;
+        const week = $("adminWeek").value;
+        if (!year || !week) {
+          showToast("연도/주차를 입력하십시오.");
+          return;
+        }
+        $("adminGenerateHqPdfBtn").disabled = true;
+        try {
+          const res = await apiGet("generateWeeklyMonitoringPdf", {
+            inspectionYear: year,
+            inspectionWeek: week,
+          });
+          if (!res.ok) throw new Error(res.error?.message || "생성 실패");
+          const link = $("adminHqPdfLink");
+          link.href = res.data.pdf_url;
+          link.style.display = "";
+          showToast("본사 마스터 PDF 생성 완료");
+        } catch (err) {
+          showToast("본사 PDF 생성 오류: " + err.message);
+        } finally {
+          $("adminGenerateHqPdfBtn").disabled = false;
+        }
+      }
+
       $("reloadBtn").addEventListener("click", () => location.reload());
       $("nextBtn").addEventListener("click", goNextTrigger);
       $("submitBtn").addEventListener("click", submitInspection);
@@ -614,4 +825,17 @@ const state = {
         if (e.key === "Escape" && !$("lawModal").classList.contains("hidden"))
           closeLawModal();
       });
-      init();
+      $("logoutBtn").addEventListener("click", logout);
+      $("adminLogoutBtn").addEventListener("click", logout);
+      $("loginSubmitBtn").addEventListener("click", attemptLogin);
+      $("loginPassword").addEventListener("keydown", (e) => {
+        if (e.key === "Enter") attemptLogin();
+      });
+      $("adminLoadBtn").addEventListener("click", loadAdminWeek);
+      $("adminGenerateHqPdfBtn").addEventListener("click", generateHqPdf);
+      wireWorkforceBox();
+
+      const savedRole = sessionStorage.getItem("authRole");
+      if (savedRole === "site" || savedRole === "admin") {
+        showApp(savedRole);
+      }
