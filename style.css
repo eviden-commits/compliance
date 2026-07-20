@@ -307,6 +307,11 @@
         min-height: 70px;
         resize: vertical;
       }
+      .field-error {
+        border-color: var(--error) !important;
+        box-shadow: 0 0 0 3px rgba(185, 28, 28, 0.1) !important;
+        background: #fef2f2 !important;
+      }
       .trigger-card {
         padding: 20px;
         margin-bottom: 16px;

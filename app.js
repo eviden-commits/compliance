@@ -676,7 +676,19 @@
           items,
         };
       }
+      function validateSubmitterFields() {
+        const nameOk = !!$("submitterName").value.trim();
+        const emailOk = !!$("submitterEmail").value.trim();
+        $("submitterName").classList.toggle("field-error", !nameOk);
+        $("submitterEmail").classList.toggle("field-error", !emailOk);
+        if (!nameOk && !emailOk) return "점검자와 제출자 이메일을 입력하십시오.";
+        if (!nameOk) return "점검자를 입력하십시오.";
+        if (!emailOk) return "제출자 이메일을 입력하십시오.";
+        return "";
+      }
       function validateBeforeSubmit(payload) {
+        const submitterMsg = validateSubmitterFields();
+        if (submitterMsg) return submitterMsg;
         const unchecked = payload.items.filter(
           (i) => !i.result_status || i.result_status === "미점검",
         );
@@ -1267,6 +1279,12 @@
       $("reloadBtn").addEventListener("click", () => location.reload());
       $("nextBtn").addEventListener("click", goNextTrigger);
       $("submitBtn").addEventListener("click", submitInspection);
+      $("submitterName").addEventListener("input", () =>
+        $("submitterName").classList.remove("field-error"),
+      );
+      $("submitterEmail").addEventListener("input", () =>
+        $("submitterEmail").classList.remove("field-error"),
+      );
       $("lawModalClose").addEventListener("click", closeLawModal);
       $("lawModalCloseBtn").addEventListener("click", closeLawModal);
       $("lawModal").addEventListener("click", (e) => {
