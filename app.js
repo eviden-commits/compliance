@@ -19,6 +19,7 @@
         itemResults: {},
         badDetails: {},
         siteContext: { avg_workers: "", new_workers: "" },
+        triggerNotes: {},
       };
       const $ = (id) => document.getElementById(id);
       function showToast(message) {
@@ -153,8 +154,20 @@
         }
         const tr = state.triggerResults[trigger.trigger_id] || "";
         const conditions = state.rules.conditionMap?.[trigger.trigger_id] || [];
+        const allItems = state.rules.itemMap?.[trigger.trigger_id] || [];
         const activeItems = getActiveItemsForTrigger(trigger.trigger_id);
-        panel.innerHTML = `<div class="card trigger-card"><div class="trigger-card-head"><div><h2>${escapeHtml(trigger.trigger_id)}. ${escapeHtml(trigger.trigger_title)}</h2><p>${escapeHtml(trigger.description || "")}</p></div><div class="segmented"><button class="${tr === "Y" ? "on y" : ""}" data-trigger-result="Y">해당됨</button><button class="${tr === "N" ? "on n" : ""}" data-trigger-result="N">해당없음</button></div></div><div id="baseBox"></div></div><div class="item-list" id="itemList"></div>`;
+        const skippedByCycleCount = allItems.filter(
+          (item) => !isItemDueThisWeek(item),
+        ).length;
+        panel.innerHTML = `<div class="card trigger-card"><div class="trigger-card-head"><div><h2>${escapeHtml(trigger.trigger_id)}. ${escapeHtml(trigger.trigger_title)}</h2><p>${escapeHtml(trigger.description || "")}</p></div><div class="segmented"><button class="${tr === "Y" ? "on y" : ""}" data-trigger-result="Y">해당됨</button><button class="${tr === "N" ? "on n" : ""}" data-trigger-result="N">해당없음</button></div></div><div id="baseBox"></div>${
+          skippedByCycleCount
+            ? `<p class="muted" style="margin-top:10px;font-size:12px;">정기점검 주기가 아직 도래하지 않은 항목 ${skippedByCycleCount}건은 이번 주 목록에서 제외되었습니다.</p>`
+            : ""
+        }${
+          tr === "Y"
+            ? `<div class="base-question" style="margin-top:14px;"><h3 class="section-title">확인 메모 (선택)</h3><textarea id="triggerNoteInput" placeholder="이번 주 이 트리거와 관련해서 무엇을 확인했는지 자유롭게 적어주십시오. (예: 현장 게시판 육안 확인, 서류철 대조 확인 등)">${escapeHtml(state.triggerNotes[trigger.trigger_id] || "")}</textarea></div>`
+            : ""
+        }</div><div class="item-list" id="itemList"></div>`;
         panel.querySelectorAll("[data-trigger-result]").forEach((btn) => {
           btn.addEventListener("click", () => {
             state.triggerResults[trigger.trigger_id] =
@@ -171,8 +184,26 @@
             updateSummary();
           });
         });
+        wireTriggerNoteInput(trigger.trigger_id);
         renderBaseQuestions(trigger, conditions);
         renderItems(activeItems, trigger);
+      }
+      function wireTriggerNoteInput(triggerId) {
+        const el = $("triggerNoteInput");
+        if (!el) return;
+
+        let isComposing = false;
+        el.addEventListener("compositionstart", () => {
+          isComposing = true;
+        });
+        el.addEventListener("compositionend", () => {
+          isComposing = false;
+          state.triggerNotes[triggerId] = el.value;
+        });
+        el.addEventListener("input", () => {
+          if (isComposing) return;
+          state.triggerNotes[triggerId] = el.value;
+        });
       }
       function renderBaseQuestions(trigger, allConditions) {
         const box = $("baseBox");
@@ -377,8 +408,27 @@
           // 원청 전용 항목은 원청 현장에서만 노출한다.
           if (item.apply_type === "원청" && contractType !== "원청")
             return false;
+          // 정기점검 주기(check_cycle)가 이번 ISO 주차에 해당하지 않으면 제외한다.
+          if (!isItemDueThisWeek(item)) return false;
           return isItemActive(item, answers);
         });
+      }
+      // check_cycle(매주/격주/월간/분기/반기/연간)을 ISO 주차 번호로 판정한다.
+      // ISO 주차는 백엔드 getCurrentIsoWeekInfo_()가 계산해서 getAppConfig의
+      // currentWeek.week로 내려주는 값을 그대로 쓴다 (1~52/53).
+      function isItemDueThisWeek(item) {
+        const cycle = item.check_cycle || "매주";
+        if (cycle === "매주") return true;
+
+        const week = Number(state.appConfig?.currentWeek?.week || 1);
+
+        if (cycle === "격주") return (week - 1) % 2 === 0;
+        if (cycle === "월간") return (week - 1) % 4 === 0;
+        if (cycle === "분기") return (week - 1) % 13 === 0;
+        if (cycle === "반기") return (week - 1) % 26 === 0;
+        if (cycle === "연간") return week === 1;
+
+        return true;
       }
       function isItemActive(item, answers) {
         if (String(item.active || "Y").toUpperCase() !== "Y") {
@@ -541,6 +591,17 @@
           manager_type: site.contract_type || "",
           avg_workers: state.siteContext.avg_workers || "",
           new_workers: state.siteContext.new_workers || "",
+          trigger_notes: (state.rules.triggers || [])
+            .filter(
+              (t) =>
+                state.triggerResults[t.trigger_id] === "Y" &&
+                (state.triggerNotes[t.trigger_id] || "").trim(),
+            )
+            .map((t) => ({
+              trigger_id: t.trigger_id,
+              trigger_title: t.short_title || t.trigger_title,
+              note: state.triggerNotes[t.trigger_id].trim(),
+            })),
           submitter_name: $("submitterName").value.trim(),
           submitter_email: $("submitterEmail").value.trim(),
           rule_version: state.rules.ruleVersion,
