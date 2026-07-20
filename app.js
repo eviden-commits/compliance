@@ -949,7 +949,7 @@
               res.data.site_name,
           );
           $("newSiteName").value = "";
-          $("newSiteDivision").value = "";
+          $("newSiteDivision").value = "하이테크본부";
           $("newSiteContractAmount").value = "";
           $("newSiteManager").value = "";
           $("newSiteAdminPassword").value = "";
