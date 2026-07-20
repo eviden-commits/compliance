@@ -18,7 +18,12 @@
         baseAnswers: {},
         itemResults: {},
         badDetails: {},
-        siteContext: { avg_workers: "", new_workers: "" },
+        siteContext: {
+          avg_workers: "",
+          new_workers: "",
+          contract_type_confirm: "",
+          has_foreign_workers: false,
+        },
         triggerNotes: {},
       };
       const $ = (id) => document.getElementById(id);
@@ -50,7 +55,7 @@
           $("ruleVersion").value = state.rules.ruleVersion || "";
           initializeStateFromRules();
           renderTriggerList();
-          selectTrigger((state.rules.triggers[0] || {}).trigger_id);
+          selectTrigger((getVisibleTriggers()[0] || {}).trigger_id);
           $("systemStatus").innerHTML =
             "API 연결 정상<br>Rule Version: " +
             escapeHtml(state.rules.ruleVersion || "") +
@@ -80,12 +85,48 @@
           sel.appendChild(opt);
         });
         state.selectedSite = state.sites[0] || null;
+        syncContractTypeConfirmToSelectedSite();
         sel.addEventListener("change", () => {
           state.selectedSite =
             state.sites.find((s) => s.site_id === sel.value) || null;
+          syncContractTypeConfirmToSelectedSite();
           // 계약구분(원청/하도급)에 따라 노출되는 항목이 달라지므로 다시 그린다.
           renderTriggerPanel();
           renderTriggerList();
+          updateSummary();
+        });
+      }
+      function syncContractTypeConfirmToSelectedSite() {
+        const value = state.selectedSite?.contract_type || "";
+        state.siteContext.contract_type_confirm = value;
+        document
+          .querySelectorAll('input[name="siteContractTypeConfirm"]')
+          .forEach((el) => {
+            el.checked = el.value === value;
+          });
+      }
+      function wireSiteConfirmBox() {
+        document
+          .querySelectorAll('input[name="siteContractTypeConfirm"]')
+          .forEach((el) => {
+            el.addEventListener("change", () => {
+              state.siteContext.contract_type_confirm = el.value;
+              renderTriggerList();
+              renderTriggerPanel();
+              updateSummary();
+            });
+          });
+        $("hasForeignWorkers").addEventListener("change", (e) => {
+          const checked = e.target.checked;
+          state.siteContext.has_foreign_workers = checked;
+          state.triggerResults["T2"] = checked ? "Y" : "N";
+          if (!checked) {
+            (state.rules.itemMap?.["T2"] || []).forEach((item) => {
+              state.itemResults[item.item_id] = "해당없음";
+            });
+          }
+          renderTriggerList();
+          renderTriggerPanel();
           updateSummary();
         });
       }
@@ -111,10 +152,25 @@
           });
         });
       }
+      function getVisibleTriggers() {
+        const contractType = state.siteContext.contract_type_confirm || "";
+        return (state.rules?.triggers || []).filter((t) => {
+          // 원청 전용 트리거는 계약구분이 원청으로 확인된 경우에만 노출한다.
+          if (t.apply_type === "원청" && contractType !== "원청") return false;
+          return true;
+        });
+      }
       function renderTriggerList() {
         const box = $("triggerList");
         box.innerHTML = "";
-        (state.rules.triggers || []).forEach((t) => {
+        const visibleTriggers = getVisibleTriggers();
+        if (
+          state.currentTriggerId &&
+          !visibleTriggers.some((t) => t.trigger_id === state.currentTriggerId)
+        ) {
+          state.currentTriggerId = (visibleTriggers[0] || {}).trigger_id || null;
+        }
+        visibleTriggers.forEach((t) => {
           const btn = document.createElement("button");
           btn.className =
             "trigger-btn" +
@@ -403,7 +459,7 @@
       function getActiveItemsForTrigger(triggerId) {
         const allItems = state.rules.itemMap?.[triggerId] || [];
         const answers = state.baseAnswers[triggerId] || {};
-        const contractType = state.selectedSite?.contract_type || "";
+        const contractType = state.siteContext.contract_type_confirm || "";
         return allItems.filter((item) => {
           // 원청 전용 항목은 원청 현장에서만 노출한다.
           if (item.apply_type === "원청" && contractType !== "원청")
@@ -490,7 +546,7 @@
       }
       function updateSummary() {
         const allActiveItems = [];
-        (state.rules?.triggers || []).forEach((t) => {
+        getVisibleTriggers().forEach((t) => {
           allActiveItems.push(...getActiveItemsForTrigger(t.trigger_id));
         });
         let ok = 0,
@@ -537,7 +593,7 @@
         const site = state.selectedSite || {};
         const week = state.appConfig.currentWeek;
         const items = [];
-        (state.rules.triggers || []).forEach((t) => {
+        getVisibleTriggers().forEach((t) => {
           const triggerResult = state.triggerResults[t.trigger_id] || "";
           const activeItems = getActiveItemsForTrigger(t.trigger_id);
           const answers = state.baseAnswers[t.trigger_id] || {};
@@ -591,7 +647,11 @@
           manager_type: site.contract_type || "",
           avg_workers: state.siteContext.avg_workers || "",
           new_workers: state.siteContext.new_workers || "",
-          trigger_notes: (state.rules.triggers || [])
+          contract_type_confirm: state.siteContext.contract_type_confirm || "",
+          has_foreign_workers: state.siteContext.has_foreign_workers
+            ? "Y"
+            : "N",
+          trigger_notes: getVisibleTriggers()
             .filter(
               (t) =>
                 state.triggerResults[t.trigger_id] === "Y" &&
@@ -605,7 +665,7 @@
           submitter_name: $("submitterName").value.trim(),
           submitter_email: $("submitterEmail").value.trim(),
           rule_version: state.rules.ruleVersion,
-          total_triggers: (state.rules.triggers || []).length,
+          total_triggers: getVisibleTriggers().length,
           completed_triggers: Object.values(state.triggerResults).filter(
             (v) => v,
           ).length,
@@ -690,7 +750,7 @@
         }
       }
       function goNextTrigger() {
-        const triggers = state.rules?.triggers || [];
+        const triggers = getVisibleTriggers();
         const idx = triggers.findIndex(
           (t) => t.trigger_id === state.currentTriggerId,
         );
@@ -1002,6 +1062,7 @@
           closeAddSiteModal();
       });
       wireWorkforceBox();
+      wireSiteConfirmBox();
 
       const savedRole = sessionStorage.getItem("authRole");
       if (savedRole === "site" || savedRole === "admin") {

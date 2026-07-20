@@ -125,6 +125,38 @@
               </div>
             </div>
           </section>
+          <section class="card work-header" id="siteConfirmBox">
+            <h3 class="section-title" style="margin-bottom: 10px">
+              현장 기본정보 확인 (필수)
+            </h3>
+            <div class="base-grid" style="grid-template-columns: 1fr 1fr">
+              <div class="field">
+                <label>계약구분 *</label>
+                <div class="login-role-group">
+                  <label class="login-role">
+                    <input type="radio" name="siteContractTypeConfirm" value="원청" />
+                    원청
+                  </label>
+                  <label class="login-role">
+                    <input type="radio" name="siteContractTypeConfirm" value="하도급" />
+                    하도급
+                  </label>
+                </div>
+              </div>
+              <div class="field">
+                <label>외국인 근로자 *</label>
+                <label class="chip" style="width: fit-content;">
+                  <input type="checkbox" id="hasForeignWorkers" />
+                  이번 주 외국인 근로자가 있습니다
+                </label>
+              </div>
+            </div>
+            <p class="muted" style="margin: 10px 0 0; font-size: 12px">
+              계약구분에 따라 [T11 원청 수급인 관리] 트리거가 표시되거나 숨겨지고,
+              외국인 근로자 여부에 따라 [T2 외국인 근로자] 트리거가 자동으로
+              결정됩니다.
+            </p>
+          </section>
           <section class="card work-header" id="workforceBox">
             <h3 class="section-title" style="margin-bottom: 10px">
               현장 인력 현황 (이번 주 기준)
