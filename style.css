@@ -404,6 +404,14 @@
         flex-direction: column;
         gap: 14px;
       }
+      .next-trigger-row {
+        display: flex;
+        justify-content: flex-end;
+        padding: 4px 2px 24px;
+      }
+      .next-trigger-row .btn {
+        padding: 12px 20px;
+      }
       .item-card {
         padding: 18px;
         border: 1px solid var(--border);

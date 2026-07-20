@@ -371,21 +371,34 @@
         const type = c.input_type === "count" ? "number" : "text";
         return `<div class="field"><label>${label}</label><input type="${type}" data-input="${escapeAttr(key)}" value="${escapeAttr(val)}" placeholder="${escapeAttr(c.help_text || "")}"></div>`;
       }
+      function nextTriggerButtonHtml_() {
+        return `<div class="next-trigger-row"><button class="btn primary" data-next-trigger type="button">다음 트리거 →</button></div>`;
+      }
+      function wireNextTriggerButtons_(container) {
+        container.querySelectorAll("[data-next-trigger]").forEach((btn) => {
+          btn.addEventListener("click", goNextTrigger);
+        });
+      }
       function renderItems(items, trigger) {
         const list = $("itemList");
         if (state.triggerResults[trigger.trigger_id] === "N") {
           list.innerHTML =
-            '<div class="card trigger-card"><h2>이번 주 해당사항 없음</h2><p>해당 트리거의 세부항목은 해당없음으로 처리됩니다.</p></div>';
+            '<div class="card trigger-card"><h2>이번 주 해당사항 없음</h2><p>해당 트리거의 세부항목은 해당없음으로 처리됩니다.</p></div>' +
+            nextTriggerButtonHtml_();
+          wireNextTriggerButtons_(list);
           return;
         }
         if (state.triggerResults[trigger.trigger_id] !== "Y") {
           list.innerHTML =
-            '<div class="card trigger-card"><h2>해당 여부 선택 필요</h2><p>먼저 이번 주 해당 여부를 선택하십시오.</p></div>';
+            '<div class="card trigger-card"><h2>해당 여부 선택 필요</h2><p>먼저 이번 주 해당 여부를 선택하십시오.</p></div>' +
+            nextTriggerButtonHtml_();
+          wireNextTriggerButtons_(list);
           return;
         }
-        list.innerHTML = items
-          .map((item) => renderItemCard(item, trigger))
-          .join("");
+        list.innerHTML =
+          items.map((item) => renderItemCard(item, trigger)).join("") +
+          nextTriggerButtonHtml_();
+        wireNextTriggerButtons_(list);
         list.querySelectorAll("[data-result]").forEach((btn) => {
           btn.addEventListener("click", () => {
             const itemId = btn.dataset.itemId;
@@ -1277,7 +1290,6 @@
       }
 
       $("reloadBtn").addEventListener("click", () => location.reload());
-      $("nextBtn").addEventListener("click", goNextTrigger);
       $("submitBtn").addEventListener("click", submitInspection);
       $("submitterName").addEventListener("input", () =>
         $("submitterName").classList.remove("field-error"),
