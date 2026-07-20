@@ -25,6 +25,10 @@
           has_foreign_workers: false,
         },
         triggerNotes: {},
+        adminSites: [],
+        adminRules: null,
+        deleteSiteTarget: null,
+        editRuleItemTarget: null,
       };
       const $ = (id) => document.getElementById(id);
       function showToast(message) {
@@ -848,6 +852,7 @@
           }
           await loadAdminWeek();
           await loadAdminSiteList();
+          await loadAdminRuleItems();
         } catch (err) {
           $("adminApiBadge").textContent = "API 오류";
           $("adminApiBadge").className = "api-badge fail";
@@ -856,9 +861,10 @@
       }
       async function loadAdminSiteList() {
         try {
-          const res = await apiGet("getSiteList");
+          const res = await apiGet("getSiteList", { includeInactive: "1" });
           if (!res.ok) throw new Error(res.error?.message || "현장목록 조회 실패");
-          renderAdminAllSites(res.data || []);
+          state.adminSites = res.data || [];
+          renderAdminAllSites(state.adminSites);
         } catch (err) {
           showToast("현장목록 조회 오류: " + err.message);
         }
@@ -867,20 +873,34 @@
         const body = $("adminAllSiteTableBody");
         if (!sites.length) {
           body.innerHTML =
-            '<tr><td colspan="5" class="muted">등록된 현장이 없습니다.</td></tr>';
+            '<tr><td colspan="7" class="muted">등록된 현장이 없습니다.</td></tr>';
           return;
         }
         body.innerHTML = sites
-          .map(
-            (s) => `<tr>
+          .map((s) => {
+            const isActive = String(s.active || "Y").toUpperCase() !== "N";
+            const actionLabel = isActive ? "삭제" : "복구";
+            const actionClass = isActive ? "req" : "new";
+            return `<tr>
               <td>${escapeHtml(s.site_id)}</td>
               <td>${escapeHtml(s.site_name)}</td>
               <td>${escapeHtml(s.division || "")}</td>
               <td><span class="pill ${s.contract_type === "원청" ? "law" : ""}">${escapeHtml(s.contract_type || "")}</span></td>
               <td>${escapeHtml(s.site_manager || "")}</td>
-            </tr>`,
-          )
+              <td><span class="pill ${isActive ? "new" : "req"}">${isActive ? "활성" : "비활성"}</span></td>
+              <td><button class="btn" style="padding:6px 10px;" data-site-action="${escapeAttr(s.site_id)}">
+                <span class="pill ${actionClass}" style="pointer-events:none;">${actionLabel}</span>
+              </button></td>
+            </tr>`;
+          })
           .join("");
+        body.querySelectorAll("[data-site-action]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const siteId = btn.dataset.siteAction;
+            const site = sites.find((s) => s.site_id === siteId);
+            if (site) openDeleteSiteModal(site);
+          });
+        });
       }
       function openAddSiteModal() {
         $("addSiteError").textContent = "";
@@ -941,6 +961,217 @@
           $("addSiteSubmitBtn").disabled = false;
         }
       }
+
+      // ---------------- 현장 삭제/복구 ----------------
+      function openDeleteSiteModal(site) {
+        const isActive = String(site.active || "Y").toUpperCase() !== "N";
+        state.deleteSiteTarget = { site_id: site.site_id, activate: !isActive };
+        $("deleteSiteModalTitle").textContent = isActive
+          ? "현장 삭제"
+          : "현장 복구";
+        $("deleteSiteModalDesc").textContent = isActive
+          ? `"${site.site_name}"(${site.site_id})을(를) 비활성화합니다. 현장 선택 목록에서 사라지며, 언제든 다시 복구할 수 있습니다.`
+          : `"${site.site_name}"(${site.site_id})을(를) 다시 활성화합니다.`;
+        $("deleteSiteSubmitBtn").textContent = isActive ? "삭제" : "복구";
+        $("deleteSiteError").textContent = "";
+        $("deleteSiteAdminPassword").value = "";
+        $("deleteSiteModal").classList.remove("hidden");
+      }
+      function closeDeleteSiteModal() {
+        $("deleteSiteModal").classList.add("hidden");
+        state.deleteSiteTarget = null;
+      }
+      async function submitDeleteSite() {
+        const target = state.deleteSiteTarget;
+        if (!target) return;
+        const adminPassword = $("deleteSiteAdminPassword").value;
+        if (!adminPassword) {
+          $("deleteSiteError").textContent = "관리자 비밀번호를 입력하십시오.";
+          return;
+        }
+        $("deleteSiteSubmitBtn").disabled = true;
+        $("deleteSiteError").textContent = "";
+        try {
+          const action = target.activate ? "reactivateSite" : "deleteSite";
+          const res = await apiPost(action, {
+            site_id: target.site_id,
+            admin_password: adminPassword,
+          });
+          if (!res.ok) throw new Error(res.error?.message || "처리 실패");
+          showToast(
+            (target.activate ? "복구되었습니다: " : "삭제되었습니다: ") +
+              target.site_id,
+          );
+          closeDeleteSiteModal();
+          await loadAdminSiteList();
+        } catch (err) {
+          $("deleteSiteError").textContent = err.message;
+        } finally {
+          $("deleteSiteSubmitBtn").disabled = false;
+        }
+      }
+
+      // ---------------- 비밀번호 변경 ----------------
+      function openChangePasswordModal(role) {
+        state.changePasswordRole = role;
+        $("changePasswordModalTitle").textContent =
+          (role === "admin" ? "관리자용" : "현장용") + " 비밀번호 변경";
+        $("changePasswordCurrent").value = "";
+        $("changePasswordNew").value = "";
+        $("changePasswordConfirm").value = "";
+        $("changePasswordError").textContent = "";
+        $("changePasswordModal").classList.remove("hidden");
+      }
+      function closeChangePasswordModal() {
+        $("changePasswordModal").classList.add("hidden");
+      }
+      async function submitChangePassword() {
+        const role = state.changePasswordRole;
+        const current = $("changePasswordCurrent").value;
+        const next = $("changePasswordNew").value;
+        const confirm = $("changePasswordConfirm").value;
+        if (!current || !next) {
+          $("changePasswordError").textContent =
+            "현재 비밀번호와 새 비밀번호를 입력하십시오.";
+          return;
+        }
+        if (next.length < 4) {
+          $("changePasswordError").textContent =
+            "새 비밀번호는 4자 이상이어야 합니다.";
+          return;
+        }
+        if (next !== confirm) {
+          $("changePasswordError").textContent =
+            "새 비밀번호 확인이 일치하지 않습니다.";
+          return;
+        }
+        $("changePasswordSubmitBtn").disabled = true;
+        $("changePasswordError").textContent = "";
+        try {
+          const res = await apiPost("changePassword", {
+            role,
+            current_password: current,
+            new_password: next,
+          });
+          if (!res.ok) throw new Error(res.error?.message || "변경 실패");
+          showToast("비밀번호가 변경되었습니다.");
+          closeChangePasswordModal();
+        } catch (err) {
+          $("changePasswordError").textContent = err.message;
+        } finally {
+          $("changePasswordSubmitBtn").disabled = false;
+        }
+      }
+
+      // ---------------- 법규 항목(Rule Master) 관리 ----------------
+      async function loadAdminRuleItems() {
+        try {
+          const res = await apiGet("getPublishedRules");
+          if (!res.ok) throw new Error(res.error?.message || "법규 조회 실패");
+          state.adminRules = res.data;
+          renderRuleItemTriggerFilter();
+          renderRuleItemTable();
+        } catch (err) {
+          showToast("법규 항목 조회 오류: " + err.message);
+        }
+      }
+      function renderRuleItemTriggerFilter() {
+        const sel = $("ruleItemTriggerFilter");
+        const triggers = state.adminRules?.triggers || [];
+        sel.innerHTML =
+          '<option value="">전체 트리거</option>' +
+          triggers
+            .map(
+              (t) =>
+                `<option value="${escapeAttr(t.trigger_id)}">${escapeHtml(t.trigger_id)}. ${escapeHtml(t.short_title || t.trigger_title)}</option>`,
+            )
+            .join("");
+      }
+      function renderRuleItemTable() {
+        const body = $("ruleItemTableBody");
+        const filterId = $("ruleItemTriggerFilter").value;
+        const items = (state.adminRules?.items || []).filter(
+          (i) => !filterId || i.trigger_id === filterId,
+        );
+        if (!items.length) {
+          body.innerHTML =
+            '<tr><td colspan="8" class="muted">항목이 없습니다.</td></tr>';
+          return;
+        }
+        body.innerHTML = items
+          .map((i) => {
+            const isActive = String(i.active || "Y").toUpperCase() !== "N";
+            return `<tr>
+              <td>${escapeHtml(i.item_id)}</td>
+              <td>${escapeHtml(i.item_title || "")}</td>
+              <td style="max-width:320px;">${escapeHtml(i.item_text || "")}</td>
+              <td>${escapeHtml(String(i.required || "Y"))}</td>
+              <td>${escapeHtml(i.non_compliance_level || "")}</td>
+              <td>${escapeHtml(i.check_cycle || "매주")}</td>
+              <td><span class="pill ${isActive ? "new" : "req"}">${isActive ? "Y" : "N"}</span></td>
+              <td><button class="btn" style="padding:6px 10px;" data-edit-item="${escapeAttr(i.item_id)}">수정</button></td>
+            </tr>`;
+          })
+          .join("");
+        body.querySelectorAll("[data-edit-item]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const item = items.find((i) => i.item_id === btn.dataset.editItem);
+            if (item) openRuleItemEditModal(item);
+          });
+        });
+      }
+      function openRuleItemEditModal(item) {
+        state.editRuleItemTarget = item.item_id;
+        $("ruleItemEditModalTitle").textContent =
+          item.item_id + " 수정";
+        $("editItemTitle").value = item.item_title || "";
+        $("editItemText").value = item.item_text || "";
+        $("editItemRequired").value = String(item.required || "Y").toUpperCase() === "N" ? "N" : "Y";
+        $("editItemLevel").value = item.non_compliance_level || "중요";
+        $("editItemCycle").value = item.check_cycle || "매주";
+        $("editItemEvidence").value = String(item.evidence_required || "N").toUpperCase() === "Y" ? "Y" : "N";
+        $("editItemActive").value = String(item.active || "Y").toUpperCase() === "N" ? "N" : "Y";
+        $("editItemAdminPassword").value = "";
+        $("ruleItemEditError").textContent = "";
+        $("ruleItemEditModal").classList.remove("hidden");
+      }
+      function closeRuleItemEditModal() {
+        $("ruleItemEditModal").classList.add("hidden");
+        state.editRuleItemTarget = null;
+      }
+      async function submitRuleItemEdit() {
+        const itemId = state.editRuleItemTarget;
+        if (!itemId) return;
+        const adminPassword = $("editItemAdminPassword").value;
+        if (!adminPassword) {
+          $("ruleItemEditError").textContent = "관리자 비밀번호를 입력하십시오.";
+          return;
+        }
+        $("ruleItemEditSubmitBtn").disabled = true;
+        $("ruleItemEditError").textContent = "";
+        try {
+          const res = await apiPost("updateRuleItem", {
+            admin_password: adminPassword,
+            item_id: itemId,
+            item_title: $("editItemTitle").value.trim(),
+            item_text: $("editItemText").value.trim(),
+            required: $("editItemRequired").value,
+            non_compliance_level: $("editItemLevel").value,
+            check_cycle: $("editItemCycle").value,
+            evidence_required: $("editItemEvidence").value,
+            active: $("editItemActive").value,
+          });
+          if (!res.ok) throw new Error(res.error?.message || "수정 실패");
+          showToast("항목이 수정되었습니다: " + itemId);
+          closeRuleItemEditModal();
+          await loadAdminRuleItems();
+        } catch (err) {
+          $("ruleItemEditError").textContent = err.message;
+        } finally {
+          $("ruleItemEditSubmitBtn").disabled = false;
+        }
+      }
+
       async function loadAdminWeek() {
         const year = $("adminYear").value;
         const week = $("adminWeek").value;
@@ -1060,6 +1291,46 @@
           !$("addSiteModal").classList.contains("hidden")
         )
           closeAddSiteModal();
+      });
+      $("deleteSiteModalClose").addEventListener("click", closeDeleteSiteModal);
+      $("deleteSiteSubmitBtn").addEventListener("click", submitDeleteSite);
+      $("deleteSiteModal").addEventListener("click", (e) => {
+        if (e.target === $("deleteSiteModal")) closeDeleteSiteModal();
+      });
+      $("changePasswordBtn").addEventListener("click", () =>
+        openChangePasswordModal("site"),
+      );
+      $("adminChangePasswordBtn").addEventListener("click", () =>
+        openChangePasswordModal("admin"),
+      );
+      $("changePasswordModalClose").addEventListener(
+        "click",
+        closeChangePasswordModal,
+      );
+      $("changePasswordSubmitBtn").addEventListener(
+        "click",
+        submitChangePassword,
+      );
+      $("changePasswordModal").addEventListener("click", (e) => {
+        if (e.target === $("changePasswordModal")) closeChangePasswordModal();
+      });
+      $("ruleItemTriggerFilter").addEventListener("change", renderRuleItemTable);
+      $("ruleItemEditModalClose").addEventListener(
+        "click",
+        closeRuleItemEditModal,
+      );
+      $("ruleItemEditSubmitBtn").addEventListener("click", submitRuleItemEdit);
+      $("ruleItemEditModal").addEventListener("click", (e) => {
+        if (e.target === $("ruleItemEditModal")) closeRuleItemEditModal();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (!$("deleteSiteModal").classList.contains("hidden"))
+          closeDeleteSiteModal();
+        if (!$("changePasswordModal").classList.contains("hidden"))
+          closeChangePasswordModal();
+        if (!$("ruleItemEditModal").classList.contains("hidden"))
+          closeRuleItemEditModal();
       });
       wireWorkforceBox();
       wireSiteConfirmBox();
