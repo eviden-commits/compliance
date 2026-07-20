@@ -1013,9 +1013,11 @@
 
       // ---------------- 비밀번호 변경 ----------------
       function openChangePasswordModal(role) {
-        state.changePasswordRole = role;
-        $("changePasswordModalTitle").textContent =
-          (role === "admin" ? "관리자용" : "현장용") + " 비밀번호 변경";
+        const radios = document.getElementsByName("changePasswordRole");
+        radios.forEach((r) => {
+          r.checked = r.value === role;
+        });
+        $("changePasswordModalTitle").textContent = "비밀번호 변경";
         $("changePasswordCurrent").value = "";
         $("changePasswordNew").value = "";
         $("changePasswordConfirm").value = "";
@@ -1026,7 +1028,10 @@
         $("changePasswordModal").classList.add("hidden");
       }
       async function submitChangePassword() {
-        const role = state.changePasswordRole;
+        const roleRadio = document.querySelector(
+          'input[name="changePasswordRole"]:checked',
+        );
+        const role = roleRadio ? roleRadio.value : "site";
         const current = $("changePasswordCurrent").value;
         const next = $("changePasswordNew").value;
         const confirm = $("changePasswordConfirm").value;

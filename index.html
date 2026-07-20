@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>세방테크 주간 법규 준수 모니터링 시스템</title>
-    <link rel="stylesheet" href="./style.css?v=20260720d" />
+    <link rel="stylesheet" href="./style.css?v=20260720e" />
   </head>
   <body>
     <!-- 로그인 화면 -->
@@ -313,14 +313,7 @@
           </div>
         </section>
         <section class="card admin-table-box">
-          <div
-            style="
-              display: flex;
-              justify-content: space-between;
-              align-items: center;
-              margin-bottom: 12px;
-            "
-          >
+          <div class="rule-master-header">
             <h3 class="section-title" style="margin-bottom: 0">
               법규 항목 관리 (Rule Master)
             </h3>
@@ -467,15 +460,28 @@
         <div class="modal-body">
           <div class="base-grid">
             <div class="field wide">
-              <label>현재 비밀번호 *</label>
+              <label>대상 *</label>
+              <div class="login-role-group">
+                <label class="login-role">
+                  <input type="radio" name="changePasswordRole" value="site" />
+                  현장용
+                </label>
+                <label class="login-role">
+                  <input type="radio" name="changePasswordRole" value="admin" />
+                  관리자용
+                </label>
+              </div>
+            </div>
+            <div class="field wide">
+              <label>기존 비밀번호 *</label>
               <input type="password" id="changePasswordCurrent" />
             </div>
             <div class="field">
-              <label>새 비밀번호 *</label>
+              <label>신규 비밀번호 *</label>
               <input type="password" id="changePasswordNew" />
             </div>
             <div class="field">
-              <label>새 비밀번호 확인 *</label>
+              <label>신규 비밀번호 확인 *</label>
               <input type="password" id="changePasswordConfirm" />
             </div>
           </div>
@@ -626,7 +632,7 @@
         </div>
       </div>
     </div>
-    <script src="./api.js?v=20260720d"></script>
-    <script src="./app.js?v=20260720d"></script>
+    <script src="./api.js?v=20260720e"></script>
+    <script src="./app.js?v=20260720e"></script>
   </body>
 </html>
