@@ -1104,7 +1104,7 @@
             return `<tr>
               <td>${escapeHtml(i.item_id)}</td>
               <td>${escapeHtml(i.item_title || "")}</td>
-              <td style="max-width:320px;">${escapeHtml(i.item_text || "")}</td>
+              <td class="wrap-cell">${escapeHtml(i.item_text || "")}</td>
               <td>${escapeHtml(String(i.required || "Y"))}</td>
               <td>${escapeHtml(i.non_compliance_level || "")}</td>
               <td>${escapeHtml(i.check_cycle || "매주")}</td>
