@@ -908,11 +908,51 @@
           await loadAdminWeek();
           await loadAdminSiteList();
           await loadAdminRuleItems();
+          await loadRecentHqReports();
         } catch (err) {
           $("adminApiBadge").textContent = "API 오류";
           $("adminApiBadge").className = "api-badge fail";
           showToast("관리자 초기화 오류: " + err.message);
         }
+      }
+      async function loadRecentHqReports() {
+        const box = $("adminRecentReportsBox");
+        try {
+          const res = await apiGet("getRecentHqReports", {
+            reportType: "HQ_WEEKLY",
+            limit: 3,
+          });
+          if (!res.ok) throw new Error(res.error?.message || "이력 조회 실패");
+          renderRecentHqReports(res.data || []);
+        } catch (err) {
+          box.innerHTML = `<div class="muted" style="font-size: 12px">이력을 불러오지 못했습니다: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+      function renderRecentHqReports(reports) {
+        const box = $("adminRecentReportsBox");
+        if (!reports.length) {
+          box.innerHTML =
+            '<div class="muted" style="font-size: 12px">생성된 이력이 없습니다.</div>';
+          return;
+        }
+        box.innerHTML = reports
+          .map((r) => {
+            const fileId = extractDriveFileId(r.file_url);
+            const downloadUrl = fileId
+              ? driveDirectDownloadUrl(fileId)
+              : r.file_url;
+            return `<div class="recent-report-item">
+              <div class="recent-report-info">
+                <div class="recent-report-title">${escapeHtml(String(r.inspection_year))}년 ${escapeHtml(String(r.inspection_week))}주차</div>
+                <div class="recent-report-meta">${escapeHtml(r.generated_at || "-")}</div>
+              </div>
+              <div style="display:flex; gap:6px; flex-shrink:0;">
+                <a class="btn" style="padding:4px 8px" href="${escapeAttr(r.file_url)}" target="_blank" rel="noopener">열기</a>
+                <a class="btn" style="padding:4px 8px" href="${escapeAttr(downloadUrl)}" target="_blank" rel="noopener">다운로드</a>
+              </div>
+            </div>`;
+          })
+          .join("");
       }
       async function loadAdminSiteList() {
         try {
@@ -1332,6 +1372,7 @@
           link.href = res.data.pdf_url;
           link.style.display = "";
           showToast("본사 마스터 PDF 생성 완료");
+          await loadRecentHqReports();
         } catch (err) {
           showToast("본사 PDF 생성 오류: " + err.message);
         } finally {
