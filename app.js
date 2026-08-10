@@ -12,6 +12,7 @@
         appConfig: null,
         rules: null,
         phase: "작업중",
+        periodMode: "WEEKLY",
         sites: [],
         selectedSite: null,
         currentTriggerId: null,
@@ -51,6 +52,7 @@
             throw new Error(configRes.error?.message || "getAppConfig 실패");
           state.appConfig = configRes.data;
           state.sites = configRes.data.sites || [];
+          applyPeriodLabels(configRes.data.periodMode, configRes.data.periodLabel);
           renderWeek(configRes.data.currentWeek);
           renderSites();
           wireInspectionPhaseGroup();
@@ -105,8 +107,22 @@
       }
       function renderWeek(info) {
         if (!info) return;
+        const unit = state.periodMode === "MONTHLY" ? "월" : "주차";
         $("weekText").textContent =
-          `${info.year}년 ${info.week}주차 (${info.week_start} ~ ${info.week_end})`;
+          `${info.year}년 ${info.week}${unit} (${info.week_start} ~ ${info.week_end})`;
+      }
+      // 관리자가 점검 주기 모드를 주간/월간으로 바꾸면 현장 화면 제목과
+      // 안내 문구, 헤더의 기간 표기가 전부 같은 단어로 통일되어야 하므로
+      // getAppConfig가 내려주는 periodMode/periodLabel로 한 번에 반영한다.
+      function applyPeriodLabels(mode, label) {
+        state.periodMode = mode === "MONTHLY" ? "MONTHLY" : "WEEKLY";
+        const periodLabel = label || (state.periodMode === "MONTHLY" ? "월간" : "주간");
+        const titleEl = $("workTitle");
+        if (titleEl) titleEl.textContent = `${periodLabel} 법규 준수 점검`;
+        const descEl = $("workDesc");
+        if (descEl) {
+          descEl.textContent = `현장별 ${periodLabel} 법규 준수 점검결과를 작성하고 제출합니다. 미이행 항목은 사유, 시정조치계획, 조치기한을 입력하십시오.`;
+        }
       }
       function renderSites() {
         const sel = $("siteSelect");
@@ -246,7 +262,7 @@
         const allItems = state.rules.itemMap?.[trigger.trigger_id] || [];
         const activeItems = getActiveItemsForTrigger(trigger.trigger_id);
         const skippedByCycleCount = allItems.filter(
-          (item) => !isItemDueThisWeek(item),
+          (item) => !isItemDueThisPeriod(item),
         ).length;
         panel.innerHTML = `<div class="card trigger-card"><div class="trigger-card-head"><div><h2>${escapeHtml(trigger.trigger_id)}. ${escapeHtml(trigger.trigger_title)}</h2><p>${escapeHtml(trigger.description || "")}</p></div><div class="segmented"><button class="${tr === "Y" ? "on y" : ""}" data-trigger-result="Y">해당됨</button><button class="${tr === "N" ? "on n" : ""}" data-trigger-result="N">해당없음</button></div></div><div id="baseBox"></div>${
           skippedByCycleCount
@@ -510,25 +526,35 @@
           // 원청 전용 항목은 원청 현장에서만 노출한다.
           if (item.apply_type === "원청" && contractType !== "원청")
             return false;
-          // 정기점검 주기(check_cycle)가 이번 ISO 주차에 해당하지 않으면 제외한다.
-          if (!isItemDueThisWeek(item)) return false;
+          // 정기점검 주기(check_cycle)가 이번 점검 시점에 해당하지 않으면 제외한다.
+          if (!isItemDueThisPeriod(item)) return false;
           return isItemActive(item, answers);
         });
       }
-      // check_cycle(매주/격주/월간/분기/반기/연간)을 ISO 주차 번호로 판정한다.
-      // ISO 주차는 백엔드 getCurrentIsoWeekInfo_()가 계산해서 getAppConfig의
-      // currentWeek.week로 내려주는 값을 그대로 쓴다 (1~52/53).
-      function isItemDueThisWeek(item) {
+      // check_cycle(매주/격주/월간/분기/반기/연간)을 이번 점검 시점 번호로 판정한다.
+      // 점검 주기 모드가 주간이면 ISO 주차(1~52/53), 월간이면 달(1~12)을
+      // getAppConfig의 currentWeek.week로 받아 그대로 쓴다.
+      //
+      // 월간 모드에서는 점검 자체가 이미 한 달에 한 번뿐이므로 "매주/격주"는
+      // "월간"과 동일하게 매번 표시하고, 분기/반기/연간만 달 번호로 걸러낸다.
+      function isItemDueThisPeriod(item) {
         const cycle = item.check_cycle || "매주";
+        const period = Number(state.appConfig?.currentWeek?.week || 1);
+
+        if (state.periodMode === "MONTHLY") {
+          if (cycle === "매주" || cycle === "격주" || cycle === "월간") return true;
+          if (cycle === "분기") return (period - 1) % 3 === 0;
+          if (cycle === "반기") return (period - 1) % 6 === 0;
+          if (cycle === "연간") return period === 1;
+          return true;
+        }
+
         if (cycle === "매주") return true;
-
-        const week = Number(state.appConfig?.currentWeek?.week || 1);
-
-        if (cycle === "격주") return (week - 1) % 2 === 0;
-        if (cycle === "월간") return (week - 1) % 4 === 0;
-        if (cycle === "분기") return (week - 1) % 13 === 0;
-        if (cycle === "반기") return (week - 1) % 26 === 0;
-        if (cycle === "연간") return week === 1;
+        if (cycle === "격주") return (period - 1) % 2 === 0;
+        if (cycle === "월간") return (period - 1) % 4 === 0;
+        if (cycle === "분기") return (period - 1) % 13 === 0;
+        if (cycle === "반기") return (period - 1) % 26 === 0;
+        if (cycle === "연간") return period === 1;
 
         return true;
       }
@@ -901,6 +927,7 @@
           $("adminApiBadge").className = "api-badge ok";
           const configRes = await apiGet("getAppConfig");
           const week = configRes.data?.currentWeek;
+          applyAdminPeriodLabel(configRes.data?.periodMode);
           if (week) {
             $("adminYear").value = week.year;
             $("adminWeek").value = week.week;
@@ -909,10 +936,65 @@
           await loadAdminSiteList();
           await loadAdminRuleItems();
           await loadRecentHqReports();
+          await loadPeriodModeSettings();
         } catch (err) {
           $("adminApiBadge").textContent = "API 오류";
           $("adminApiBadge").className = "api-badge fail";
           showToast("관리자 초기화 오류: " + err.message);
+        }
+      }
+      function applyAdminPeriodLabel(mode) {
+        const label = $("adminWeekLabel");
+        if (label) label.textContent = mode === "MONTHLY" ? "월" : "주차";
+      }
+      async function loadPeriodModeSettings() {
+        try {
+          const res = await apiGet("getPeriodMode");
+          if (!res.ok) throw new Error(res.error?.message || "조회 실패");
+          document
+            .querySelectorAll('input[name="periodMode"]')
+            .forEach((el) => {
+              el.checked = el.value === res.data.mode;
+            });
+          $("periodModeCurrentText").textContent =
+            `현재 설정: ${res.data.label} (${res.data.mode === "MONTHLY" ? "달력 월 단위" : "ISO 주차 단위"})`;
+        } catch (err) {
+          $("periodModeCurrentText").textContent =
+            "현재 설정을 불러오지 못했습니다: " + err.message;
+        }
+      }
+      async function savePeriodMode() {
+        const selected = document.querySelector(
+          'input[name="periodMode"]:checked',
+        );
+        const mode = selected ? selected.value : "WEEKLY";
+        const pw = $("periodModeAdminPassword").value;
+        $("periodModeError").textContent = "";
+        if (!pw) {
+          $("periodModeError").textContent = "관리자 비밀번호를 입력하십시오.";
+          return;
+        }
+        $("periodModeSaveBtn").disabled = true;
+        try {
+          const res = await apiPost("setPeriodMode", {
+            admin_password: pw,
+            mode,
+          });
+          if (!res.ok) {
+            $("periodModeError").textContent =
+              res.error?.message || "저장 실패";
+            return;
+          }
+          $("periodModeAdminPassword").value = "";
+          showToast(
+            `점검 주기가 ${res.data.label}(으)로 저장되었습니다. 새로고침 시 현장/보고서 표기에 반영됩니다.`,
+          );
+          await loadPeriodModeSettings();
+          applyAdminPeriodLabel(res.data.mode);
+        } catch (err) {
+          $("periodModeError").textContent = "저장 오류: " + err.message;
+        } finally {
+          $("periodModeSaveBtn").disabled = false;
         }
       }
       async function loadRecentHqReports() {
@@ -1405,6 +1487,7 @@
       });
       $("adminLoadBtn").addEventListener("click", loadAdminWeek);
       $("adminGenerateHqPdfBtn").addEventListener("click", generateHqPdf);
+      $("periodModeSaveBtn").addEventListener("click", savePeriodMode);
       $("adminSiteTableBody").addEventListener("click", (e) => {
         const btn = e.target.closest("[data-hq-checklist-btn]");
         if (!btn) return;

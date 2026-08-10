@@ -808,6 +808,9 @@
           flex: 1 1 auto;
         }
       }
+      .admin-period-settings {
+        padding: 18px 22px;
+      }
       .admin-summary {
         padding: 18px 22px;
         display: grid;
