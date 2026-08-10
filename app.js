@@ -11,6 +11,7 @@
       const state = {
         appConfig: null,
         rules: null,
+        phase: "작업중",
         sites: [],
         selectedSite: null,
         currentTriggerId: null,
@@ -52,27 +53,55 @@
           state.sites = configRes.data.sites || [];
           renderWeek(configRes.data.currentWeek);
           renderSites();
-          const ruleRes = await apiGet("getPublishedRules");
-          if (!ruleRes.ok)
-            throw new Error(ruleRes.error?.message || "getPublishedRules 실패");
-          state.rules = ruleRes.data;
-          $("ruleVersion").value = state.rules.ruleVersion || "";
-          initializeStateFromRules();
-          renderTriggerList();
-          selectTrigger((getVisibleTriggers()[0] || {}).trigger_id);
-          $("systemStatus").innerHTML =
-            "API 연결 정상<br>Rule Version: " +
-            escapeHtml(state.rules.ruleVersion || "") +
-            "<br>트리거: " +
-            (state.rules.triggers || []).length +
-            "개<br>세부항목: " +
-            (state.rules.items || []).length;
+          wireInspectionPhaseGroup();
+          await loadPublishedRulesForPhase(state.phase);
         } catch (err) {
           $("apiBadge").textContent = "API 오류";
           $("apiBadge").className = "api-badge fail";
           $("systemStatus").textContent = "초기화 오류: " + err.message;
           showToast("초기화 오류: " + err.message);
         }
+      }
+      async function loadPublishedRulesForPhase(phase) {
+        const ruleRes = await apiGet("getPublishedRules", { phase });
+        if (!ruleRes.ok)
+          throw new Error(ruleRes.error?.message || "getPublishedRules 실패");
+        state.rules = ruleRes.data;
+        state.phase = phase;
+        $("ruleVersion").value = state.rules.ruleVersion || "";
+        state.triggerResults = {};
+        state.baseAnswers = {};
+        state.itemResults = {};
+        state.badDetails = {};
+        state.triggerNotes = {};
+        initializeStateFromRules();
+        state.currentTriggerId = null;
+        renderTriggerList();
+        selectTrigger((getVisibleTriggers()[0] || {}).trigger_id);
+        updateSummary();
+        $("systemStatus").innerHTML =
+          "API 연결 정상<br>Rule Version: " +
+          escapeHtml(state.rules.ruleVersion || "") +
+          "<br>구분: " +
+          escapeHtml(phase) +
+          "<br>트리거: " +
+          (state.rules.triggers || []).length +
+          "개<br>세부항목: " +
+          (state.rules.items || []).length;
+      }
+      function wireInspectionPhaseGroup() {
+        document
+          .querySelectorAll('input[name="inspectionPhase"]')
+          .forEach((el) => {
+            el.addEventListener("change", async () => {
+              if (!el.checked) return;
+              try {
+                await loadPublishedRulesForPhase(el.value);
+              } catch (err) {
+                showToast("점검구분 변경 오류: " + err.message);
+              }
+            });
+          });
       }
       function renderWeek(info) {
         if (!info) return;
@@ -682,6 +711,7 @@
           submitter_name: $("submitterName").value.trim(),
           submitter_email: $("submitterEmail").value.trim(),
           rule_version: state.rules.ruleVersion,
+          inspection_phase: state.phase,
           total_triggers: getVisibleTriggers().length,
           completed_triggers: Object.values(state.triggerResults).filter(
             (v) => v,
@@ -1238,7 +1268,7 @@
         const body = $("adminSiteTableBody");
         if (!sites.length) {
           body.innerHTML =
-            '<tr><td colspan="8" class="muted">데이터가 없습니다.</td></tr>';
+            '<tr><td colspan="9" class="muted">데이터가 없습니다.</td></tr>';
           return;
         }
         body.innerHTML = sites
@@ -1251,6 +1281,9 @@
                   : "")
               : "-";
             const pillClass = s.submit_status === "미제출" ? "req" : "new";
+            const checklistCell = s.submission_id
+              ? `<button class="btn" style="padding:4px 8px" data-hq-checklist-btn data-submission-id="${escapeAttr(s.submission_id)}">체크리스트 생성</button>`
+              : "-";
             return `<tr>
               <td>${escapeHtml(s.site_name)}</td>
               <td>${escapeHtml(s.division || "")}</td>
@@ -1260,9 +1293,26 @@
               <td>${escapeHtml(s.overall_status || "-")}</td>
               <td>${escapeHtml(String(s.non_compliant_count ?? 0))}</td>
               <td>${pdfCell}</td>
+              <td>${checklistCell}</td>
             </tr>`;
           })
           .join("");
+      }
+      async function generateHqChecklist(submissionId, btn) {
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = "생성 중...";
+        try {
+          const res = await apiGet("generateHqChecklistPdf", { submissionId });
+          if (!res.ok) throw new Error(res.error?.message || "생성 실패");
+          showToast("본사 점검체크리스트 생성 완료");
+          window.open(res.data.pdf_url, "_blank", "noopener");
+        } catch (err) {
+          showToast("점검체크리스트 생성 오류: " + err.message);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
       }
       async function generateHqPdf() {
         const year = $("adminYear").value;
@@ -1314,6 +1364,11 @@
       });
       $("adminLoadBtn").addEventListener("click", loadAdminWeek);
       $("adminGenerateHqPdfBtn").addEventListener("click", generateHqPdf);
+      $("adminSiteTableBody").addEventListener("click", (e) => {
+        const btn = e.target.closest("[data-hq-checklist-btn]");
+        if (!btn) return;
+        generateHqChecklist(btn.dataset.submissionId, btn);
+      });
       $("adminAddSiteBtn").addEventListener("click", openAddSiteModal);
       $("addSiteModalClose").addEventListener("click", closeAddSiteModal);
       $("addSiteSubmitBtn").addEventListener("click", submitAddSite);

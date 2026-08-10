@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>세방테크 주간 법규 준수 모니터링 시스템</title>
-    <link rel="stylesheet" href="./style.css?v=20260721b" />
+    <link rel="stylesheet" href="./style.css?v=20260810a" />
   </head>
   <body>
     <!-- 로그인 화면 -->
@@ -108,6 +108,20 @@
                   현장별 주간 법규 준수 점검결과를 작성하고 제출합니다. 미이행
                   항목은 사유, 시정조치계획, 조치기한을 입력하십시오.
                 </p>
+                <div class="login-role-group" id="inspectionPhaseGroup" style="margin-top: 10px">
+                  <label class="login-role">
+                    <input type="radio" name="inspectionPhase" value="작업전" />
+                    작업전
+                  </label>
+                  <label class="login-role">
+                    <input type="radio" name="inspectionPhase" value="작업중" checked />
+                    작업중
+                  </label>
+                  <label class="login-role">
+                    <input type="radio" name="inspectionPhase" value="작업후" />
+                    현장마감
+                  </label>
+                </div>
               </div>
               <div class="site-box">
                 <div class="field">
@@ -287,6 +301,7 @@
                   <th>종합판정</th>
                   <th>미이행</th>
                   <th>현장 PDF</th>
+                  <th>본사 재확인</th>
                 </tr>
               </thead>
               <tbody id="adminSiteTableBody"></tbody>
@@ -632,7 +647,7 @@
         </div>
       </div>
     </div>
-    <script src="./api.js?v=20260721b"></script>
-    <script src="./app.js?v=20260721b"></script>
+    <script src="./api.js?v=20260810a"></script>
+    <script src="./app.js?v=20260810a"></script>
   </body>
 </html>
