@@ -431,8 +431,10 @@
           return `<div class="field"><label>${label}</label><select data-input="${escapeAttr(key)}"><option value="">선택</option><option value="Y" ${val === "Y" ? "selected" : ""}>예</option><option value="N" ${val === "N" ? "selected" : ""}>아니오</option></select></div>`;
         if (c.input_type === "multicheck") {
           const selected = Array.isArray(val) ? val : [];
+          // Rule Master 작성자에 따라 콤마(,) 또는 파이프(|)로 옵션을
+          // 구분하는 경우가 섞여 있어 둘 다 구분자로 인정한다.
           const opts = String(c.option_values || "")
-            .split(",")
+            .split(/[,|]/)
             .map((s) => s.trim())
             .filter(Boolean);
           return `<div class="field" style="grid-column:1 / -1;"><label>${label}</label><div class="check-list">${opts.map((opt) => `<label class="chip"><input type="checkbox" data-multi="${escapeAttr(key)}" value="${escapeAttr(opt)}" ${selected.includes(opt) ? "checked" : ""}>${escapeHtml(opt)}</label>`).join("")}</div></div>`;
@@ -1188,8 +1190,10 @@
           return `<div class="field"><label>${label}</label><select data-precheck-input="${escapeAttr(key)}"><option value="">선택</option><option value="Y" ${val === "Y" ? "selected" : ""}>예</option><option value="N" ${val === "N" ? "selected" : ""}>아니오</option></select></div>`;
         if (c.input_type === "multicheck") {
           const selected = Array.isArray(val) ? val : [];
+          // Rule Master 작성자에 따라 콤마(,) 또는 파이프(|)로 옵션을
+          // 구분하는 경우가 섞여 있어 둘 다 구분자로 인정한다.
           const opts = String(c.option_values || "")
-            .split(",")
+            .split(/[,|]/)
             .map((s) => s.trim())
             .filter(Boolean);
           return `<div class="field" style="grid-column:1 / -1;"><label>${label}</label><div class="check-list">${opts.map((opt) => `<label class="chip"><input type="checkbox" data-precheck-multi="${escapeAttr(key)}" value="${escapeAttr(opt)}" ${selected.includes(opt) ? "checked" : ""}>${escapeHtml(opt)}</label>`).join("")}</div></div>`;
