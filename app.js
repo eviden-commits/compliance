@@ -7,6 +7,10 @@
 // 비밀번호는 여기 두지 않는다. 서버(Auth.gs의 verifyLogin)에서만 대조한다.
       // 트리거 진입 전 전역으로 묻고, 해당 트리거의 기초질문에서는 숨기는 조건 키
       const GLOBAL_CONDITION_KEYS = ["n_workers"];
+      // 현장 추가 폼의 "계약구분(원청/하도급)"과 의미가 같은 사전체크 질문은
+      // 사전체크 섹션에서 다시 묻지 않고, 계약구분 선택값을 그대로 매핑해
+      // 자동 채운다. 중복 입력을 없애기 위함.
+      const SITE_LEVEL_CONDITION_KEYS = ["contract_role"];
 
       const state = {
         appConfig: null,
@@ -1146,7 +1150,9 @@
         }
         box.innerHTML = triggers
           .map((t) => {
-            const conditions = state.preCheckRules.conditionMap?.[t.trigger_id] || [];
+            const conditions = (
+              state.preCheckRules.conditionMap?.[t.trigger_id] || []
+            ).filter((c) => !SITE_LEVEL_CONDITION_KEYS.includes(c.condition_key));
             if (!conditions.length) return "";
             return `
               <div class="field wide" style="grid-column: 1 / -1; margin-top: 6px;">
@@ -1157,7 +1163,9 @@
           })
           .join("");
         triggers.forEach((t) => {
-          const conditions = state.preCheckRules.conditionMap?.[t.trigger_id] || [];
+          const conditions = (
+            state.preCheckRules.conditionMap?.[t.trigger_id] || []
+          ).filter((c) => !SITE_LEVEL_CONDITION_KEYS.includes(c.condition_key));
           conditions.forEach((c) => {
             const key = c.condition_key;
             if (c.input_type === "multicheck") {
@@ -1224,6 +1232,12 @@
         $("addSiteSubmitBtn").disabled = true;
         $("addSiteError").textContent = "";
         try {
+          // "당사 계약형태(contract_role)" 사전체크 질문은 화면에서 숨기고,
+          // 위에서 고른 계약구분(원청/하도급)을 그대로 매핑해 대신 채운다.
+          const preCheckAnswers = {
+            ...state.preCheckAnswers,
+            contract_role: [contractType === "원청" ? "원도급" : "하도급"],
+          };
           const res = await apiPost("addSite", {
             admin_password: adminPassword,
             site_name: siteName,
@@ -1231,7 +1245,7 @@
             contract_type: contractType,
             contract_amount: $("newSiteContractAmount").value,
             site_manager: $("newSiteManager").value.trim(),
-            pre_check_answers: state.preCheckAnswers,
+            pre_check_answers: preCheckAnswers,
           });
           if (!res.ok) throw new Error(res.error?.message || "현장 추가 실패");
 
