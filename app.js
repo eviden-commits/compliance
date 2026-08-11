@@ -29,6 +29,9 @@
         triggerNotes: {},
         adminSites: [],
         adminRules: null,
+        preCheckRules: null,
+        preCheckAnswers: {},
+        sitePreCheckAnswers: {},
         deleteSiteTarget: null,
         editRuleItemTarget: null,
       };
@@ -153,6 +156,18 @@
           .forEach((el) => {
             el.checked = el.value === value;
           });
+        state.sitePreCheckAnswers = parseSitePreCheckAnswers(state.selectedSite);
+      }
+      // 작업전(현장개설) phase에서는 매 점검마다 기초질문을 다시 묻지 않고,
+      // 현장 등록 시 관리자가 한 번 입력해둔 사전체크 답변(pre_check_answers_json)을
+      // 그대로 항목 활성화 판정에 쓴다.
+      function parseSitePreCheckAnswers(site) {
+        if (!site || !site.pre_check_answers_json) return {};
+        try {
+          return JSON.parse(site.pre_check_answers_json) || {};
+        } catch (err) {
+          return {};
+        }
       }
       function wireSiteConfirmBox() {
         document
@@ -312,6 +327,15 @@
       }
       function renderBaseQuestions(trigger, allConditions) {
         const box = $("baseBox");
+        // 작업전(현장개설) phase는 현장 등록 시 관리자가 이미 사전체크로
+        // 답변을 저장해뒀으므로, 점검화면에서는 다시 묻지 않고 안내만 한다.
+        if (state.phase === "작업전") {
+          box.innerHTML =
+            state.triggerResults[trigger.trigger_id] === "Y"
+              ? '<p class="muted" style="margin:10px 0 0;font-size:12px;">이 트리거의 세부항목은 현장 등록 시 입력된 사전체크 값으로 자동 판정됩니다. 값을 바꾸려면 관리자에게 요청하십시오.</p>'
+              : "";
+          return;
+        }
         // n_workers 등은 트리거 진입 전 "현장 인력 현황" 박스에서 이미 물었으므로
         // 트리거 안에서는 다시 묻지 않는다.
         const conditions = allConditions.filter(
@@ -520,7 +544,13 @@
       }
       function getActiveItemsForTrigger(triggerId) {
         const allItems = state.rules.itemMap?.[triggerId] || [];
-        const answers = state.baseAnswers[triggerId] || {};
+        // 작업전(현장개설) phase는 매번 다시 묻지 않고 현장 등록 시 저장된
+        // 사전체크 답변을 그대로 조건 판정에 쓴다. 그 외(작업중/현장마감)는
+        // 지금까지처럼 이번 점검에서 입력한 기초질문 답변을 쓴다.
+        const answers =
+          state.phase === "작업전"
+            ? state.sitePreCheckAnswers || {}
+            : state.baseAnswers[triggerId] || {};
         const contractType = state.siteContext.contract_type_confirm || "";
         return allItems.filter((item) => {
           // 원청 전용 항목은 원청 현장에서만 노출한다.
@@ -1079,12 +1109,93 @@
           });
         });
       }
-      function openAddSiteModal() {
+      async function openAddSiteModal() {
         $("addSiteError").textContent = "";
         $("addSiteModal").classList.remove("hidden");
+        state.preCheckAnswers = {};
+        await loadAddSitePreCheckRules();
       }
       function closeAddSiteModal() {
         $("addSiteModal").classList.add("hidden");
+      }
+      async function loadAddSitePreCheckRules() {
+        const box = $("addSitePreCheckBox");
+        box.innerHTML =
+          '<div class="muted" style="font-size: 12px; grid-column: 1 / -1;">사전체크 항목을 불러오는 중...</div>';
+        try {
+          const res = await apiGet("getPublishedRules", { phase: "작업전" });
+          if (!res.ok) throw new Error(res.error?.message || "조회 실패");
+          state.preCheckRules = res.data;
+          renderAddSitePreCheck();
+        } catch (err) {
+          box.innerHTML = `<div class="muted" style="font-size: 12px; grid-column: 1 / -1;">사전체크 항목을 불러오지 못했습니다: ${escapeHtml(err.message)}</div>`;
+        }
+      }
+      function renderAddSitePreCheck() {
+        const box = $("addSitePreCheckBox");
+        const triggers = state.preCheckRules?.triggers || [];
+        if (!triggers.length) {
+          box.innerHTML =
+            '<div class="muted" style="font-size: 12px; grid-column: 1 / -1;">' +
+            "등록된 작업전(현장개설) 점검항목이 아직 없습니다. Rule Master에 " +
+            "phase=작업전 트리거를 추가하면 여기 표시됩니다." +
+            "</div>";
+          return;
+        }
+        box.innerHTML = triggers
+          .map((t) => {
+            const conditions = state.preCheckRules.conditionMap?.[t.trigger_id] || [];
+            if (!conditions.length) return "";
+            return `
+              <div class="field wide" style="grid-column: 1 / -1; margin-top: 6px;">
+                <label style="font-weight: 700;">${escapeHtml(t.trigger_id)}. ${escapeHtml(t.short_title || t.trigger_title)}</label>
+              </div>
+              ${conditions.map((c) => renderPreCheckConditionInput(c)).join("")}
+            `;
+          })
+          .join("");
+        triggers.forEach((t) => {
+          const conditions = state.preCheckRules.conditionMap?.[t.trigger_id] || [];
+          conditions.forEach((c) => {
+            const key = c.condition_key;
+            if (c.input_type === "multicheck") {
+              box.querySelectorAll(`[data-precheck-multi="${key}"]`).forEach((chk) => {
+                chk.addEventListener("change", () => {
+                  const values = [
+                    ...box.querySelectorAll(`[data-precheck-multi="${key}"]:checked`),
+                  ].map((x) => x.value);
+                  state.preCheckAnswers[key] = values;
+                });
+              });
+              return;
+            }
+            const el = box.querySelector(`[data-precheck-input="${key}"]`);
+            if (!el) return;
+            el.addEventListener("change", () => {
+              state.preCheckAnswers[key] = el.value;
+            });
+            el.addEventListener("blur", () => {
+              state.preCheckAnswers[key] = el.value;
+            });
+          });
+        });
+      }
+      function renderPreCheckConditionInput(c) {
+        const key = c.condition_key;
+        const val = state.preCheckAnswers[key] ?? "";
+        const label = escapeHtml(c.condition_label || key);
+        if (c.input_type === "yn")
+          return `<div class="field"><label>${label}</label><select data-precheck-input="${escapeAttr(key)}"><option value="">선택</option><option value="Y" ${val === "Y" ? "selected" : ""}>예</option><option value="N" ${val === "N" ? "selected" : ""}>아니오</option></select></div>`;
+        if (c.input_type === "multicheck") {
+          const selected = Array.isArray(val) ? val : [];
+          const opts = String(c.option_values || "")
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+          return `<div class="field" style="grid-column:1 / -1;"><label>${label}</label><div class="check-list">${opts.map((opt) => `<label class="chip"><input type="checkbox" data-precheck-multi="${escapeAttr(key)}" value="${escapeAttr(opt)}" ${selected.includes(opt) ? "checked" : ""}>${escapeHtml(opt)}</label>`).join("")}</div></div>`;
+        }
+        const type = c.input_type === "count" ? "number" : "text";
+        return `<div class="field"><label>${label}</label><input type="${type}" data-precheck-input="${escapeAttr(key)}" value="${escapeAttr(val)}" placeholder="${escapeAttr(c.help_text || "")}"></div>`;
       }
       async function submitAddSite() {
         const siteName = $("newSiteName").value.trim();
@@ -1116,6 +1227,7 @@
             contract_type: contractType,
             contract_amount: $("newSiteContractAmount").value,
             site_manager: $("newSiteManager").value.trim(),
+            pre_check_answers: state.preCheckAnswers,
           });
           if (!res.ok) throw new Error(res.error?.message || "현장 추가 실패");
 

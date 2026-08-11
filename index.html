@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>세방테크 주간 법규 준수 모니터링 시스템</title>
-    <link rel="stylesheet" href="./style.css?v=20260810c" />
+    <link rel="stylesheet" href="./style.css?v=20260811a" />
   </head>
   <body>
     <!-- 로그인 화면 -->
@@ -450,6 +450,17 @@
               <input type="password" id="newSiteAdminPassword" placeholder="현장 추가를 위해 관리자 비밀번호를 다시 입력하십시오" />
             </div>
           </div>
+          <div class="rule-master-header" style="margin-top: 18px">
+            <h3 class="section-title" style="margin-bottom: 0">
+              사전체크 (작업전 항목)
+            </h3>
+          </div>
+          <p class="muted" style="margin: 4px 0 12px; font-size: 12px">
+            공사금액·유해인자 등 이 현장이 유지되는 동안 바뀌지 않는 값을
+            여기서 한 번만 입력합니다. 작업전 점검에서는 이 답변으로 항목이
+            자동 판정되어, 매번 다시 묻지 않습니다.
+          </p>
+          <div id="addSitePreCheckBox" class="base-grid"></div>
         </div>
         <div class="modal-foot">
           <span id="addSiteError" class="login-error" style="margin-top: 0"></span>
@@ -686,7 +697,7 @@
         </div>
       </div>
     </div>
-    <script src="./api.js?v=20260810c"></script>
-    <script src="./app.js?v=20260810c"></script>
+    <script src="./api.js?v=20260811a"></script>
+    <script src="./app.js?v=20260811a"></script>
   </body>
 </html>
