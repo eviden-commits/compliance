@@ -63,6 +63,7 @@
           renderWeek(configRes.data.currentWeek);
           renderSites();
           wireInspectionPhaseGroup();
+          wirePeriodModeGroup();
           await loadPublishedRulesForPhase(state.phase);
         } catch (err) {
           $("apiBadge").textContent = "API 오류";
@@ -112,6 +113,23 @@
             });
           });
       }
+      // 주간/월간은 건설사마다 관행이 달라 현장에서 누구나 바로 바꿀 수
+      // 있어야 한다(관리자 비밀번호 불필요). 바뀌면 제목/기간 표기/항목
+      // 주기 판정까지 전부 다시 계산해야 해서 안전하게 새로고침한다.
+      function wirePeriodModeGroup() {
+        document.querySelectorAll('input[name="periodMode"]').forEach((el) => {
+          el.addEventListener("change", async () => {
+            if (!el.checked) return;
+            try {
+              const res = await apiPost("setPeriodMode", { mode: el.value });
+              if (!res.ok) throw new Error(res.error?.message || "변경 실패");
+              location.reload();
+            } catch (err) {
+              showToast("점검 주기 변경 오류: " + err.message);
+            }
+          });
+        });
+      }
       function renderWeek(info) {
         if (!info) return;
         const unit = state.periodMode === "MONTHLY" ? "월" : "주차";
@@ -130,6 +148,9 @@
         if (descEl) {
           descEl.textContent = `현장별 ${periodLabel} 법규 준수 점검결과를 작성하고 제출합니다. 미이행 항목은 사유, 시정조치계획, 조치기한을 입력하십시오.`;
         }
+        document.querySelectorAll('input[name="periodMode"]').forEach((el) => {
+          el.checked = el.value === state.periodMode;
+        });
       }
       function renderSites() {
         const sel = $("siteSelect");
@@ -972,7 +993,6 @@
           await loadAdminSiteList();
           await loadAdminRuleItems();
           await loadRecentHqReports();
-          await loadPeriodModeSettings();
         } catch (err) {
           $("adminApiBadge").textContent = "API 오류";
           $("adminApiBadge").className = "api-badge fail";
@@ -982,56 +1002,6 @@
       function applyAdminPeriodLabel(mode) {
         const label = $("adminWeekLabel");
         if (label) label.textContent = mode === "MONTHLY" ? "월" : "주차";
-      }
-      async function loadPeriodModeSettings() {
-        try {
-          const res = await apiGet("getPeriodMode");
-          if (!res.ok) throw new Error(res.error?.message || "조회 실패");
-          document
-            .querySelectorAll('input[name="periodMode"]')
-            .forEach((el) => {
-              el.checked = el.value === res.data.mode;
-            });
-          $("periodModeCurrentText").textContent =
-            `현재 설정: ${res.data.label} (${res.data.mode === "MONTHLY" ? "달력 월 단위" : "ISO 주차 단위"})`;
-        } catch (err) {
-          $("periodModeCurrentText").textContent =
-            "현재 설정을 불러오지 못했습니다: " + err.message;
-        }
-      }
-      async function savePeriodMode() {
-        const selected = document.querySelector(
-          'input[name="periodMode"]:checked',
-        );
-        const mode = selected ? selected.value : "WEEKLY";
-        const pw = $("periodModeAdminPassword").value;
-        $("periodModeError").textContent = "";
-        if (!pw) {
-          $("periodModeError").textContent = "관리자 비밀번호를 입력하십시오.";
-          return;
-        }
-        $("periodModeSaveBtn").disabled = true;
-        try {
-          const res = await apiPost("setPeriodMode", {
-            admin_password: pw,
-            mode,
-          });
-          if (!res.ok) {
-            $("periodModeError").textContent =
-              res.error?.message || "저장 실패";
-            return;
-          }
-          $("periodModeAdminPassword").value = "";
-          showToast(
-            `점검 주기가 ${res.data.label}(으)로 저장되었습니다. 새로고침 시 현장/보고서 표기에 반영됩니다.`,
-          );
-          await loadPeriodModeSettings();
-          applyAdminPeriodLabel(res.data.mode);
-        } catch (err) {
-          $("periodModeError").textContent = "저장 오류: " + err.message;
-        } finally {
-          $("periodModeSaveBtn").disabled = false;
-        }
       }
       async function loadRecentHqReports() {
         const box = $("adminRecentReportsBox");
@@ -1617,7 +1587,6 @@
       });
       $("adminLoadBtn").addEventListener("click", loadAdminWeek);
       $("adminGenerateHqPdfBtn").addEventListener("click", generateHqPdf);
-      $("periodModeSaveBtn").addEventListener("click", savePeriodMode);
       $("adminSiteTableBody").addEventListener("click", (e) => {
         const btn = e.target.closest("[data-hq-checklist-btn]");
         if (!btn) return;

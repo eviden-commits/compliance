@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>세방테크 주간 법규 준수 모니터링 시스템</title>
-    <link rel="stylesheet" href="./style.css?v=20260812b" />
+    <link rel="stylesheet" href="./style.css?v=20260812c" />
   </head>
   <body>
     <!-- 로그인 화면 -->
@@ -120,6 +120,16 @@
                   <label class="login-role">
                     <input type="radio" name="inspectionPhase" value="작업후" />
                     현장마감
+                  </label>
+                </div>
+                <div class="login-role-group" id="periodModeGroup" style="margin-top: 8px">
+                  <label class="login-role">
+                    <input type="radio" name="periodMode" value="WEEKLY" checked />
+                    주간점검
+                  </label>
+                  <label class="login-role">
+                    <input type="radio" name="periodMode" value="MONTHLY" />
+                    월간점검
                   </label>
                 </div>
               </div>
@@ -296,35 +306,6 @@
             </div>
           </section>
         </div>
-        <section class="card admin-period-settings">
-          <h3 class="section-title" style="margin-bottom: 10px">점검 주기 설정</h3>
-          <p class="muted" style="margin: 0 0 12px; font-size: 12px">
-            건설사마다 주간점검/월간점검 관행이 달라, 현장 화면과 모든 보고서의
-            표현을 여기서 한 번에 전환할 수 있습니다. 기본값은 주간입니다.
-          </p>
-          <div class="base-grid" style="grid-template-columns: auto 1fr auto; align-items: end">
-            <div class="field">
-              <label>주기 선택</label>
-              <div class="login-role-group" id="periodModeGroup">
-                <label class="login-role">
-                  <input type="radio" name="periodMode" value="WEEKLY" checked />
-                  주간
-                </label>
-                <label class="login-role">
-                  <input type="radio" name="periodMode" value="MONTHLY" />
-                  월간
-                </label>
-              </div>
-            </div>
-            <div class="field">
-              <label>관리자 비밀번호 확인 *</label>
-              <input type="password" id="periodModeAdminPassword" placeholder="변경 시 비밀번호 입력" />
-            </div>
-            <button class="btn primary" id="periodModeSaveBtn">저장</button>
-          </div>
-          <p class="muted" id="periodModeCurrentText" style="margin: 10px 0 0; font-size: 12px"></p>
-          <span id="periodModeError" class="login-error" style="margin-top: 6px"></span>
-        </section>
         <section class="card admin-summary" id="adminSummaryBox"></section>
         <section class="card admin-table-box">
           <h3 class="section-title">현장별 제출현황</h3>
@@ -697,7 +678,7 @@
         </div>
       </div>
     </div>
-    <script src="./api.js?v=20260812b"></script>
-    <script src="./app.js?v=20260812b"></script>
+    <script src="./api.js?v=20260812c"></script>
+    <script src="./app.js?v=20260812c"></script>
   </body>
 </html>
