@@ -151,6 +151,22 @@
         document.querySelectorAll('input[name="periodMode"]').forEach((el) => {
           el.checked = el.value === state.periodMode;
         });
+        const qualifier = periodQualifierLabel();
+        const workforceTitle = $("workforceBoxTitle");
+        if (workforceTitle)
+          workforceTitle.textContent = `현장 인력 현황 (${qualifier} 기준)`;
+        const newWorkersLabel = $("newWorkersLabel");
+        if (newWorkersLabel)
+          newWorkersLabel.textContent = `${qualifier} 신규 투입 근로자수 (명)`;
+        const hasForeignWorkersLabel = $("hasForeignWorkersLabel");
+        if (hasForeignWorkersLabel)
+          hasForeignWorkersLabel.textContent = `${qualifier} 외국인 근로자가 있었습니다`;
+      }
+      // 주간이든 월간이든 "이미 마감된 지난 기간"을 점검 대상으로 삼으므로
+      // (getCurrentIsoWeekInfo_/getCurrentMonthInfo_가 서버에서 그렇게 계산),
+      // 화면 문구도 "이번 주/이번 달"이 아니라 "지난주/지난달"로 통일한다.
+      function periodQualifierLabel() {
+        return state.periodMode === "MONTHLY" ? "지난달" : "지난주";
       }
       function renderSites() {
         const sel = $("siteSelect");
@@ -306,11 +322,11 @@
         ).length;
         panel.innerHTML = `<div class="card trigger-card"><div class="trigger-card-head"><div><h2>${escapeHtml(trigger.trigger_id)}. ${escapeHtml(trigger.trigger_title)}</h2><p>${escapeHtml(trigger.description || "")}</p></div><div class="segmented"><button class="${tr === "Y" ? "on y" : ""}" data-trigger-result="Y">해당됨</button><button class="${tr === "N" ? "on n" : ""}" data-trigger-result="N">해당없음</button></div></div><div id="baseBox"></div>${
           skippedByCycleCount
-            ? `<p class="muted" style="margin-top:10px;font-size:12px;">정기점검 주기가 아직 도래하지 않은 항목 ${skippedByCycleCount}건은 이번 주 목록에서 제외되었습니다.</p>`
+            ? `<p class="muted" style="margin-top:10px;font-size:12px;">정기점검 주기가 아직 도래하지 않은 항목 ${skippedByCycleCount}건은 ${periodQualifierLabel()} 목록에서 제외되었습니다.</p>`
             : ""
         }${
           tr === "Y"
-            ? `<div class="base-question" style="margin-top:14px;"><h3 class="section-title">확인 메모 (선택)</h3><textarea id="triggerNoteInput" placeholder="이번 주 이 트리거와 관련해서 무엇을 확인했는지 자유롭게 적어주십시오. (예: 현장 게시판 육안 확인, 서류철 대조 확인 등)">${escapeHtml(state.triggerNotes[trigger.trigger_id] || "")}</textarea></div>`
+            ? `<div class="base-question" style="margin-top:14px;"><h3 class="section-title">확인 메모 (선택)</h3><textarea id="triggerNoteInput" placeholder="${periodQualifierLabel()} 이 트리거와 관련해서 무엇을 확인했는지 자유롭게 적어주십시오. (예: 현장 게시판 육안 확인, 서류철 대조 확인 등)">${escapeHtml(state.triggerNotes[trigger.trigger_id] || "")}</textarea></div>`
             : ""
         }</div><div class="item-list" id="itemList"></div>`;
         panel.querySelectorAll("[data-trigger-result]").forEach((btn) => {
@@ -479,14 +495,14 @@
         const list = $("itemList");
         if (state.triggerResults[trigger.trigger_id] === "N") {
           list.innerHTML =
-            '<div class="card trigger-card"><h2>이번 주 해당사항 없음</h2><p>해당 트리거의 세부항목은 해당없음으로 처리됩니다.</p></div>' +
+            `<div class="card trigger-card"><h2>${periodQualifierLabel()} 해당사항 없음</h2><p>해당 트리거의 세부항목은 해당없음으로 처리됩니다.</p></div>` +
             nextTriggerButtonHtml_();
           wireNextTriggerButtons_(list);
           return;
         }
         if (state.triggerResults[trigger.trigger_id] !== "Y") {
           list.innerHTML =
-            '<div class="card trigger-card"><h2>해당 여부 선택 필요</h2><p>먼저 이번 주 해당 여부를 선택하십시오.</p></div>' +
+            `<div class="card trigger-card"><h2>해당 여부 선택 필요</h2><p>먼저 ${periodQualifierLabel()} 해당 여부를 선택하십시오.</p></div>` +
             nextTriggerButtonHtml_();
           wireNextTriggerButtons_(list);
           return;

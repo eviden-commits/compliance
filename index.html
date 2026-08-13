@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>세방테크 주간 법규 준수 모니터링 시스템</title>
-    <link rel="stylesheet" href="./style.css?v=20260812c" />
+    <link rel="stylesheet" href="./style.css?v=20260814a" />
   </head>
   <body>
     <!-- 로그인 화면 -->
@@ -175,7 +175,7 @@
                 <label>외국인 근로자 *</label>
                 <label class="chip" style="width: fit-content;">
                   <input type="checkbox" id="hasForeignWorkers" />
-                  이번 주 외국인 근로자가 있습니다
+                  <span id="hasForeignWorkersLabel">지난주 외국인 근로자가 있었습니다</span>
                 </label>
               </div>
             </div>
@@ -186,8 +186,8 @@
             </p>
           </section>
           <section class="card work-header" id="workforceBox">
-            <h3 class="section-title" style="margin-bottom: 10px">
-              현장 인력 현황 (이번 주 기준)
+            <h3 class="section-title" style="margin-bottom: 10px" id="workforceBoxTitle">
+              현장 인력 현황 (지난주 기준)
             </h3>
             <div class="base-grid" style="grid-template-columns: 1fr 1fr">
               <div class="field">
@@ -195,7 +195,7 @@
                 <input type="number" id="avgWorkers" min="0" placeholder="예: 25" />
               </div>
               <div class="field">
-                <label>금주 신규 투입 근로자수 (명)</label>
+                <label id="newWorkersLabel">지난주 신규 투입 근로자수 (명)</label>
                 <input type="number" id="newWorkers" min="0" placeholder="예: 3" />
               </div>
             </div>
@@ -678,7 +678,7 @@
         </div>
       </div>
     </div>
-    <script src="./api.js?v=20260812c"></script>
-    <script src="./app.js?v=20260812c"></script>
+    <script src="./api.js?v=20260814a"></script>
+    <script src="./app.js?v=20260814a"></script>
   </body>
 </html>
